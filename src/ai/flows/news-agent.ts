@@ -82,7 +82,7 @@ export async function newsAgent(input: NewsAgentInput): Promise<NewsAgentOutput>
   } else {
     // If no tool is called, but the user is likely asking for news, call the news tool by default.
     // This handles simple queries like "AI news" or the initial "top headlines" load.
-     const tool = agentTools.searchNews;
+     const tool = newsSearchTool; // Use the direct tool object
      const output = await tool.run({ query: input.query });
      toolOutputs.push({ call: { name: 'searchNews', input: { query: input.query } }, output });
   }
