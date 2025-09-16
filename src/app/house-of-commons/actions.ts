@@ -8,7 +8,7 @@ export interface HansardSummaryResponse {
     debugInfo?: {
         url: string;
         transcript: string;
-        rawResponse: string; // Changed from rawHtml to rawResponse
+        rawResponse: string; // Will contain raw XML now
     }
 }
 

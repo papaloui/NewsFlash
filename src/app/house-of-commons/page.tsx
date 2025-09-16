@@ -79,7 +79,7 @@ export default function HouseOfCommonsPage() {
                           <AccordionContent>
                               <div className="p-4 bg-muted/50 rounded-lg text-xs space-y-4">
                                   <div>
-                                      <h4 className="font-semibold">Source API URL:</h4>
+                                      <h4 className="font-semibold">Source URL:</h4>
                                       <a href={debugInfo.url} target="_blank" rel="noopener noreferrer" className="text-primary break-all">{debugInfo.url}</a>
                                   </div>
                                    <div>
@@ -93,7 +93,7 @@ export default function HouseOfCommonsPage() {
                                           <AccordionTrigger>
                                              <div className="flex items-center gap-2 text-sm">
                                                  <Code className="h-4 w-4" />
-                                                 Show Raw API Response (JSON)
+                                                 Show Raw API Response (XML)
                                              </div>
                                           </AccordionTrigger>
                                           <AccordionContent>
