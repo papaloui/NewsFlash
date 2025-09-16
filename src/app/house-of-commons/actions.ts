@@ -1,7 +1,7 @@
 'use server';
 
 import { summarizeHansardSection } from "@/ai/flows/summarize-hansard-section";
-import { summarizeHansardTranscript } from "@/ai/flows/summarize-hansard-transcript";
+import { summarizeHansardTranscript, type SummarizeHansardTranscriptOutput } from "@/ai/flows/summarize-hansard-transcript";
 import { hansardAgent } from "@/ai/flows/hansard-agent";
 
 export async function getSectionSummary(sectionText: string): Promise<string> {
@@ -20,19 +20,19 @@ export async function getSectionSummary(sectionText: string): Promise<string> {
     }
 }
 
-export async function getTranscriptSummary(transcript: string): Promise<string> {
+export async function getTranscriptSummary(transcript: string): Promise<SummarizeHansardTranscriptOutput> {
     try {
         if (!transcript || transcript.trim().length < 100) {
-            return "Not enough content to create a full summary.";
+            throw new Error("Not enough content to create a full summary.");
         }
         const result = await summarizeHansardTranscript({ transcript });
-        return result.summary;
+        return result;
     } catch (error) {
         console.error("Error getting transcript summary:", error);
         if (error instanceof Error) {
-            return `Error: ${error.message}`;
+            throw new Error(`Error getting transcript summary: ${error.message}`);
         }
-        return "An unknown error occurred while creating the summary.";
+        throw new Error("An unknown error occurred while creating the summary.");
     }
 }
 

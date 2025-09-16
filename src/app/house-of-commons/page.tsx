@@ -31,6 +31,11 @@ interface HansardData {
   interventions: Intervention[];
 }
 
+interface FullSummary {
+  summary: string;
+  topics: string[];
+}
+
 
 export default function HouseOfCommonsPage() {
   const [url, setUrl] = useState('https://www.ourcommons.ca/Content/House/451/Debates/021/HAN021-E.XML');
@@ -40,8 +45,9 @@ export default function HouseOfCommonsPage() {
   const { toast } = useToast();
   const [summaries, setSummaries] = useState<Record<string, string>>({});
   const [summarizingId, setSummarizingId] = useState<string | null>(null);
-  const [fullSummary, setFullSummary] = useState<string | null>(null);
+  const [fullSummary, setFullSummary] = useState<FullSummary | null>(null);
   const [isSummarizingFull, setIsSummarizingFull] = useState(false);
+  const [summaryError, setSummaryError] = useState<string | null>(null);
 
   const handleLoad = async () => {
     setIsLoading(true);
@@ -113,13 +119,14 @@ export default function HouseOfCommonsPage() {
     if (!transcript) return;
     setIsSummarizingFull(true);
     setFullSummary(null);
+    setSummaryError(null);
 
     try {
-      const summary = await getTranscriptSummary(transcript);
-      setFullSummary(summary);
+      const summaryResult = await getTranscriptSummary(transcript);
+      setFullSummary(summaryResult);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred.';
-      setFullSummary(`Error generating summary: ${errorMessage}`);
+      setSummaryError(`Error generating summary: ${errorMessage}`);
     } finally {
       setIsSummarizingFull(false);
     }
@@ -262,19 +269,41 @@ export default function HouseOfCommonsPage() {
             </div>
         )}
 
+        {summaryError && (
+          <Card className="mt-6 border-destructive">
+            <CardHeader>
+              <CardTitle className='text-destructive'>Summary Error</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-destructive/90">{summaryError}</p>
+            </CardContent>
+          </Card>
+        )}
+
         {fullSummary && (
             <Card className="mt-6">
                 <CardHeader>
                     <CardTitle>Full Debate Summary</CardTitle>
                 </CardHeader>
-                <CardContent>
-                    <p className="whitespace-pre-wrap font-body text-sm leading-relaxed">{fullSummary}</p>
+                <CardContent className="space-y-4">
+                    <div>
+                      <h3 className="font-semibold mb-2">Topics Discussed</h3>
+                      <div className="flex flex-wrap gap-2">
+                        {fullSummary.topics.map((topic, index) => (
+                          <Badge key={index} variant="secondary">{topic}</Badge>
+                        ))}
+                      </div>
+                    </div>
+                    <div>
+                      <h3 className="font-semibold mb-2">Summary</h3>
+                      <p className="whitespace-pre-wrap font-body text-sm leading-relaxed">{fullSummary.summary}</p>
+                    </div>
                 </CardContent>
             </Card>
         )}
         
         {fullSummary && data && (
-          <HansardChat transcript={getFullTranscript()} summary={fullSummary} />
+          <HansardChat transcript={getFullTranscript()} summary={fullSummary.summary} />
         )}
 
         {isLoading && (

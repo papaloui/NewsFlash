@@ -17,6 +17,7 @@ export type SummarizeHansardTranscriptInput = z.infer<typeof SummarizeHansardTra
 
 const SummarizeHansardTranscriptOutputSchema = z.object({
     summary: z.string().describe('A detailed, page-long summary of the provided Hansard transcript.'),
+    topics: z.array(z.string()).describe('A list of the main topics discussed in the debate.'),
 });
 export type SummarizeHansardTranscriptOutput = z.infer<typeof SummarizeHansardTranscriptOutputSchema>;
 
@@ -30,12 +31,9 @@ const prompt = ai.definePrompt({
     output: { schema: SummarizeHansardTranscriptOutputSchema },
     prompt: `You are an expert parliamentary analyst. Your task is to provide a robust, accurate, and comprehensive summary of the following parliamentary debate from a Hansard transcript. The summary should be about a page long.
 
-The transcript is provided below, with each speaker clearly tagged. Your summary should:
-- Identify the main topics and bills discussed.
-- Outline the key arguments presented by the main speakers and parties.
-- Mention any significant votes, motions, or procedural events.
-- Maintain a neutral, objective tone.
-- Capture the overall flow and conclusion of the debates.
+The transcript is provided below, with each speaker clearly tagged. Your response must include two parts:
+1.  A 'summary' field: This should be a detailed, page-long summary that identifies the main bills discussed, outlines key arguments from main speakers, mentions significant events, and maintains a neutral tone, capturing the overall flow and conclusion.
+2.  A 'topics' field: This should be an array of strings, where each string is a distinct topic or theme discussed during the debate.
 
 Debate Transcript:
 {{{transcript}}}
