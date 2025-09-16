@@ -63,7 +63,7 @@ export async function newsAgent(input: NewsAgentInput): Promise<NewsAgentOutput>
   const toolCalls = llmResponse.toolCalls;
 
   let toolOutputs: any[] = [];
-  if (toolCalls.length > 0) {
+  if (toolCalls && toolCalls.length > 0) {
       toolOutputs = await Promise.all(
         toolCalls.map(async (toolCall) => {
             const tool = agentPrompt.tools[toolCall.name];
