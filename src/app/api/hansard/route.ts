@@ -88,18 +88,20 @@ export async function GET(req: NextRequest) {
                 const contentItems = Array.isArray(node.Content[key]) ? node.Content[key] : [node.Content[key]];
                 contentItems.forEach((item: any) => {
                     const text = item['#text'] || (typeof item === 'string' ? item : '');
-                    if (key === 'ParaText') {
+                    if (key === 'ParaText' && text) {
                         intervention.content.push({ type: 'text', value: text });
-                    } else if (key === 'FloorLanguage') {
+                    } else if (key === 'FloorLanguage' && text) {
                         intervention.content.push({ type: 'language', value: text });
-                    } else if (key === 'Timestamp') {
+                    } else if (key === 'Timestamp' && text) {
                         intervention.content.push({ type: 'timestamp', value: text });
                     }
                 });
             });
         }
         
-        interventions.push(intervention);
+        if(intervention.content.length > 0) {
+            interventions.push(intervention);
+        }
     });
 
     const responseData: HansardData = { meta, interventions };
