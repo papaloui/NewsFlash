@@ -24,7 +24,7 @@ function parseRss(rssText: string, source: string): Article[] {
 
     const headline = titleMatch ? (titleMatch[1] || titleMatch[2] || '').trim() : 'No title';
     const link = linkMatch ? linkMatch[1].trim() : '';
-    const publicationDate = pubDateMatch ? format(new Date(pubDateMatch[1].trim()), 'yyyy-MM-dd') : 'No date';
+    const publicationDate = pubDateMatch ? new Date(pubDateMatch[1].trim()).toLocaleDateString() : 'No date';
     const articleSource = sourceMatch ? (sourceMatch[1] || sourceMatch[2] || '').trim() : source;
     // Attempt to get a summary, remove HTML tags. Fallback to headline.
     const summary = descriptionMatch ? (descriptionMatch[1] || descriptionMatch[2] || '').replace(/<[^>]+>/g, '').trim() : headline;
