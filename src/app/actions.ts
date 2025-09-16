@@ -42,22 +42,47 @@ function parseRss(rssText: string, source: string): Article[] {
   return items;
 }
 
-// Extracts text content from HTML, focusing on <p> tags.
+// Extracts text content from HTML, focusing on the main content area.
 function extractArticleContent(html: string): string {
-    // Remove scripts, styles, and head
+    // Remove scripts, styles, and head for cleaner processing
     let cleanHtml = html.replace(/<script[^>]*>([\S\s]*?)<\/script>/gmi, '');
     cleanHtml = cleanHtml.replace(/<style[^>]*>([\S\s]*?)<\/style>/gmi, '');
     cleanHtml = cleanHtml.replace(/<head[^>]*>([\S\s]*?)<\/head>/gmi, '');
 
-    // Extract content from <p> tags
+    // Try to find a main content container
+    let mainContentHtml = '';
+    const mainPatterns = [
+        /<main[^>]*>([\s\S]*?)<\/main>/i,
+        /<article[^>]*>([\s\S]*?)<\/article>/i,
+        /<div id="content"[^>]*>([\s\S]*?)<\/div>/i,
+        /<div class="post-content"[^>]*>([\s\S]*?)<\/div>/i,
+        /<div class="entry-content"[^>]*>([\s\S]*?)<\/div>/i,
+    ];
+
+    for (const pattern of mainPatterns) {
+        const match = cleanHtml.match(pattern);
+        if (match && match[1]) {
+            mainContentHtml = match[1];
+            break;
+        }
+    }
+
+    // If no main container is found, use the whole body content as a fallback
+    if (!mainContentHtml) {
+        const bodyMatch = cleanHtml.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
+        mainContentHtml = bodyMatch ? bodyMatch[1] : cleanHtml;
+    }
+
+    // Extract content from <p> tags within the main content
     const pTagRegex = /<p[^>]*>(.*?)<\/p>/g;
     let match;
     const paragraphs: string[] = [];
-    while ((match = pTagRegex.exec(cleanHtml)) !== null) {
-        // Strip inner tags from paragraph
-        const paragraphText = match[1].replace(/<[^>]+>/g, '');
-        if (paragraphText.trim().length > 0) {
-            paragraphs.push(paragraphText.trim());
+    while ((match = pTagRegex.exec(mainContentHtml)) !== null) {
+        // Strip inner tags from paragraph and trim whitespace
+        const paragraphText = match[1].replace(/<[^>]+>/g, '').trim();
+        // Only include paragraphs with meaningful content
+        if (paragraphText.length > 20 && paragraphText.includes(' ')) {
+            paragraphs.push(paragraphText);
         }
     }
 
@@ -65,8 +90,8 @@ function extractArticleContent(html: string): string {
         return paragraphs.join('\n\n');
     }
 
-    // Fallback: strip all tags if no <p> tags found
-    return html.replace(/<[^>]+>/g, ' ').replace(/\s\s+/g, ' ').trim();
+    // Fallback: strip all tags from the main content if no suitable <p> tags found
+    return mainContentHtml.replace(/<[^>]+>/g, ' ').replace(/\s\s+/g, ' ').trim();
 }
 
 
