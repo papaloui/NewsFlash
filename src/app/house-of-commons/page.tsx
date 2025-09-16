@@ -80,15 +80,17 @@ export default function HouseOfCommonsPage() {
   };
 
   const getFullTranscript = () => {
-    return data?.sections.map(section => {
+    if (!data) return '';
+    return data.sections.map(section => {
       const sectionTitle = `${section.title}\n-----------------\n`;
+      const sectionContent = section.content ? `${section.content}\n\n` : '';
       const interventionsText = section.interventions.map(i => {
         const speaker = i.speaker || 'Unnamed Speaker';
         const text = getTextFromContent(i.content);
         return `${speaker}:\n${text}`;
       }).join('\n\n');
-      return sectionTitle + interventionsText;
-    }).join('\n\n\n') || '';
+      return sectionTitle + sectionContent + interventionsText;
+    }).join('\n\n\n');
   };
   
   const handleSummarizeSection = async (sectionIndex: number) => {
@@ -97,6 +99,7 @@ export default function HouseOfCommonsPage() {
     const section = data.sections[sectionIndex];
     // Collect all text from the section's content and its interventions for a comprehensive summary
     const sectionText = [
+        section.title,
         section.content,
         ...section.interventions.map(i => `${i.speaker}: ${getTextFromContent(i.content)}`)
     ].join('\n\n');
@@ -162,20 +165,28 @@ export default function HouseOfCommonsPage() {
   }
   
   // Filter sections and their interventions based on search query
-  const filteredSections = data?.sections.map(section => {
+  const filteredData = data ? {
+    ...data,
+    sections: data.sections.map(section => {
+      // If search query matches section title, show all interventions
+      if (section.title.toLowerCase().includes(searchQuery.toLowerCase())) {
+        return section;
+      }
+      // Otherwise, filter interventions within the section
       const filteredInterventions = section.interventions.filter(i => {
           const fullText = getTextFromContent(i.content).toLowerCase();
           const speakerName = i.speaker?.toLowerCase() || '';
-          const query = searchQuery.toLowerCase();
-          return fullText.includes(query) || speakerName.includes(query);
+          return fullText.includes(searchQuery.toLowerCase()) || speakerName.includes(searchQuery.toLowerCase());
       });
 
-      // If the section title matches or it has matching interventions, keep it
-      if (section.title.toLowerCase().includes(searchQuery.toLowerCase()) || filteredInterventions.length > 0) {
+      // If it has matching interventions, keep the section with just those interventions
+      if (filteredInterventions.length > 0) {
           return { ...section, interventions: filteredInterventions };
       }
       return null;
-  }).filter((section): section is Section => section !== null) || [];
+    }).filter((section): section is Section => section !== null)
+  } : null;
+
 
   return (
     <div className="min-h-screen bg-background">
@@ -234,7 +245,7 @@ export default function HouseOfCommonsPage() {
             </div>
         )}
 
-        {data && (
+        {filteredData && (
           <div className="mt-6 space-y-6">
             <Accordion type="single" collapsible className="w-full">
               <AccordionItem value="full-transcript">
@@ -248,7 +259,7 @@ export default function HouseOfCommonsPage() {
             <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
-                    placeholder={`Search ${data.sections.reduce((acc, s) => acc + s.interventions.length, 0)} interventions...`}
+                    placeholder={`Search ${data?.sections.reduce((acc, s) => acc + s.interventions.length, 0)} interventions...`}
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     className="pl-10 w-full"
@@ -256,9 +267,9 @@ export default function HouseOfCommonsPage() {
             </div>
             
             <div className="space-y-8">
-                {filteredSections.length > 0 ? filteredSections.map((section, sectionIdx) => (
+                {filteredData.sections.length > 0 ? filteredData.sections.map((section, sectionIdx) => (
                     <div key={sectionIdx} className="py-4 my-4 border-y-2 border-primary/20">
-                        <div className="flex justify-between items-center mb-2">
+                        <div className="flex justify-between items-center mb-2 flex-wrap gap-2">
                              <h3 className="text-xl font-semibold text-primary">{section.title}</h3>
                              <Button size="sm" variant="outline" onClick={() => handleSummarizeSection(sectionIdx)} disabled={section.isSummarizing}>
                                 {section.isSummarizing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
