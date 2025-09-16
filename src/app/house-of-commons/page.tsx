@@ -4,10 +4,11 @@ import { useState } from 'react';
 import { Header } from '@/components/app/header';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
-import { Landmark, Loader2, Search, BookOpen, Clock, Languages, User, Building } from 'lucide-react';
+import { Landmark, Loader2, Search, BookOpen, Clock, Languages, User, Building, ExternalLink } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 
 interface InterventionContent {
   type: 'text' | 'timestamp' | 'language';
@@ -63,10 +64,16 @@ export default function HouseOfCommonsPage() {
       setIsLoading(false);
     }
   };
-
+  
   const getTextFromContent = (content: InterventionContent[]) => {
     return content.filter(c => c.type === 'text').map(c => c.value).join(' ');
   };
+  
+  const fullTranscript = data?.interventions.map(i => {
+    const speaker = i.speaker || 'Unknown Speaker';
+    const text = getTextFromContent(i.content);
+    return `${speaker}:\n${text}`;
+  }).join('\n\n') || '';
 
   const filteredInterventions = data?.interventions.filter(i => {
       const fullText = getTextFromContent(i.content).toLowerCase();
@@ -103,6 +110,9 @@ export default function HouseOfCommonsPage() {
                 Load Transcript
               </Button>
             </div>
+             <p className="text-xs text-muted-foreground">
+                Example: <a href={url} target="_blank" rel="noopener noreferrer" className="underline hover:text-primary">{url} <ExternalLink className="inline-block h-3 w-3" /></a>
+            </p>
           </CardContent>
         </Card>
         
@@ -112,7 +122,7 @@ export default function HouseOfCommonsPage() {
                     <CardTitle>Debate Information</CardTitle>
                     <CardDescription>{data.meta.documentTitle}</CardDescription>
                 </CardHeader>
-                <CardContent className="flex flex-wrap gap-x-4 gap-y-2 text-sm">
+                <CardContent className="flex flex-wrap gap-x-4 gap-y-2 text-sm text-muted-foreground">
                     <p><span className="font-semibold">Date:</span> {data.meta.Date}</p>
                     <p><span className="font-semibold">Parliament:</span> {data.meta.ParliamentNumber}</p>
                     <p><span className="font-semibold">Session:</span> {data.meta.SessionNumber}</p>
@@ -121,7 +131,7 @@ export default function HouseOfCommonsPage() {
                 </CardContent>
             </Card>
         )}
-
+        
         {isLoading && (
             <div className="mt-6 flex justify-center items-center gap-2 text-muted-foreground">
                 <Loader2 className="h-5 w-5 animate-spin" />
@@ -131,6 +141,15 @@ export default function HouseOfCommonsPage() {
 
         {data && (
           <div className="mt-6 space-y-6">
+            <Accordion type="single" collapsible className="w-full">
+              <AccordionItem value="full-transcript">
+                <AccordionTrigger>View Full Transcript</AccordionTrigger>
+                <AccordionContent>
+                  <pre className="whitespace-pre-wrap font-body text-sm bg-muted p-4 rounded-md max-h-[400px] overflow-auto">{fullTranscript}</pre>
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
+
             <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
@@ -141,8 +160,8 @@ export default function HouseOfCommonsPage() {
                 />
             </div>
             
-            {filteredInterventions.length > 0 ? filteredInterventions.map((intervention) => (
-              <Card key={intervention.id} className="shadow-sm">
+            {filteredInterventions.length > 0 ? filteredInterventions.map((intervention, idx) => (
+              <Card key={intervention.id || idx} className="shadow-sm">
                 <CardHeader className='pb-3'>
                   <CardTitle className="text-base font-semibold flex items-center gap-2">
                     <User className="h-4 w-4 text-primary" />

@@ -66,48 +66,67 @@ export async function GET(req: NextRequest) {
 
     // 2. Extract Interventions
     const interventions: Intervention[] = [];
-    const interventionNodes = hansardDoc.HansardBody?.Intervention 
-        ? (Array.isArray(hansardDoc.HansardBody.Intervention) ? hansardDoc.HansardBody.Intervention : [hansardDoc.HansardBody.Intervention])
-        : [];
-
-    interventionNodes.forEach((node: any) => {
-        const intervention: Intervention = {
-            type: node['@_Type'] || null,
-            id: node['@_id'] || null,
-            content: []
-        };
-
-        // Extract speaker and affiliation
-        if (node.PersonSpeaking) {
-            const personNode = node.PersonSpeaking;
-            intervention.speaker = personNode['#text']?.replace(':', '').trim();
-            if (personNode.Affiliation) {
-                intervention.affiliation = personNode.Affiliation['#text'];
-            }
+    
+    // Recursive function to find all 'Intervention' nodes
+    function findInterventions(node: any) {
+        if (!node || typeof node !== 'object') {
+            return;
         }
-        
-        // Extract content
-        if (node.Content) {
-            const contentKeys = Object.keys(node.Content);
-            contentKeys.forEach(key => {
-                const contentItems = Array.isArray(node.Content[key]) ? node.Content[key] : [node.Content[key]];
-                contentItems.forEach((item: any) => {
-                    const text = item['#text'] || (typeof item === 'string' ? item : '');
-                    if (key === 'ParaText' && text) {
-                        intervention.content.push({ type: 'text', value: text });
-                    } else if (key === 'FloorLanguage' && text) {
-                        intervention.content.push({ type: 'language', value: text });
-                    } else if (key === 'Timestamp' && text) {
-                        intervention.content.push({ type: 'timestamp', value: text });
+
+        if (Array.isArray(node)) {
+            node.forEach(item => findInterventions(item));
+            return;
+        }
+
+        for (const key in node) {
+            if (key === 'Intervention') {
+                const interventionItems = Array.isArray(node[key]) ? node[key] : [node[key]];
+                interventionItems.forEach((item: any) => {
+                     const intervention: Intervention = {
+                        type: item['@_Type'] || null,
+                        id: item['@_id'] || null,
+                        content: []
+                    };
+
+                    // Extract speaker and affiliation
+                    if (item.PersonSpeaking) {
+                        const personNode = item.PersonSpeaking;
+                        intervention.speaker = personNode['#text']?.replace(':', '').trim();
+                        if (personNode.Affiliation) {
+                            intervention.affiliation = personNode.Affiliation['#text'];
+                        }
+                    }
+                    
+                    // Extract content
+                    if (item.Content) {
+                        const contentKeys = Object.keys(item.Content);
+                        contentKeys.forEach(contentKey => {
+                            const contentItems = Array.isArray(item.Content[contentKey]) ? item.Content[contentKey] : [item.Content[contentKey]];
+                            contentItems.forEach((cItem: any) => {
+                                const text = cItem['#text'] || (typeof cItem === 'string' ? cItem : '');
+                                if (contentKey === 'ParaText' && text) {
+                                    intervention.content.push({ type: 'text', value: text });
+                                } else if (contentKey === 'FloorLanguage' && text) {
+                                    intervention.content.push({ type: 'language', value: text });
+                                } else if (contentKey === 'Timestamp' && text) {
+                                    intervention.content.push({ type: 'timestamp', value: text });
+                                }
+                            });
+                        });
+                    }
+                    
+                    if(intervention.content.length > 0) {
+                        interventions.push(intervention);
                     }
                 });
-            });
+            } else if (typeof node[key] === 'object') {
+                findInterventions(node[key]);
+            }
         }
-        
-        if(intervention.content.length > 0) {
-            interventions.push(intervention);
-        }
-    });
+    }
+    
+    findInterventions(hansardDoc.HansardBody);
+
 
     const responseData: HansardData = { meta, interventions };
 
