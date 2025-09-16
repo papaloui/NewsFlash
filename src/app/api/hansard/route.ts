@@ -100,12 +100,12 @@ export async function GET(req: NextRequest) {
             content: []
         };
 
-        if (item.PersonSpeaking) {
-            const personNode = item.PersonSpeaking;
-            let fullText = personNode['#text'] || '';
-            let affiliationText = personNode.Affiliation?.['#text'] || '';
-            let speakerName = fullText.replace(affiliationText, '').replace(':', '').trim();
-            intervention.speaker = speakerName || 'Unknown Speaker';
+        if (item.PersonSpeaking?.Affiliation) {
+            const speakerName = item.PersonSpeaking.Affiliation['#text'];
+            intervention.speaker = speakerName?.trim() || 'Unknown Speaker';
+        } else if (item.PersonSpeaking) {
+             const speakerName = item.PersonSpeaking['#text']?.replace(':', '').trim();
+             intervention.speaker = speakerName || 'Unknown Speaker';
         }
         
         if (item.Content) {
