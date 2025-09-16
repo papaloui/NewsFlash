@@ -142,6 +142,9 @@ export async function processFeeds(feedUrls: string[]): Promise<SummarizedArticl
 
   } catch (error) {
     console.error("An error occurred in processFeeds:", error);
+    if (error instanceof Error) {
+        throw error;
+    }
     throw new Error("Failed to process news feeds. Please check the console for more details.");
   }
 }
