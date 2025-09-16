@@ -14,9 +14,16 @@ interface Intervention {
   content: InterventionContent[];
 }
 
+interface Section {
+    type: 'OrderOfBusiness' | 'SubjectOfBusiness' | 'Debate';
+    title: string;
+    content: string;
+    interventions: Intervention[];
+}
+
 interface HansardData {
   meta: { [key: string]: string | undefined };
-  interventions: Intervention[];
+  sections: Section[];
 }
 
 
@@ -61,26 +68,52 @@ export async function GET(req: NextRequest) {
             }
         });
     }
-    meta.documentTitle = (typeof hansardDoc.DocumentTitle === 'object' && hansardDoc.DocumentTitle !== null) 
-      ? (hansardDoc.DocumentTitle.DocumentName || hansardDoc.DocumentTitle['#text'])
+     meta.documentTitle = (typeof hansardDoc.DocumentTitle === 'object' && hansardDoc.DocumentTitle !== null)
+      ? (hansardDoc.DocumentTitle.DocumentName?.['#text'] || hansardDoc.DocumentTitle.DocumentName || hansardDoc.DocumentTitle['#text'])
       : hansardDoc.DocumentTitle;
 
 
-    // 2. Extract Interventions
-    const interventions: Intervention[] = [];
+    // 2. Extract Sections and Interventions
+    const sections: Section[] = [];
+    let currentSection: Section | null = null;
     
-    // Recursive function to find all 'Intervention' nodes
-    function findInterventions(node: any) {
+    // Recursive function to process all nodes
+    function processNodes(node: any) {
         if (!node || typeof node !== 'object') {
             return;
         }
 
         if (Array.isArray(node)) {
-            node.forEach(item => findInterventions(item));
+            node.forEach(item => processNodes(item));
             return;
         }
+        
+        const isOrderOfBusiness = node.OrderOfBusinessTitle && node.Content;
+        const isSubjectOfBusiness = node.SubjectOfBusinessTitle && node.Content;
 
+        if (isOrderOfBusiness || isSubjectOfBusiness) {
+            // Start a new section
+            const businessItem = node;
+            const title = businessItem.OrderOfBusinessTitle || businessItem.SubjectOfBusinessTitle;
+            const textContent = businessItem.Content?.ParaText?.['#text'] || businessItem.Content?.ParaText || '';
+            
+            if (title || textContent) {
+                if (currentSection) sections.push(currentSection); // push previous section
+                
+                currentSection = {
+                    type: isOrderOfBusiness ? 'OrderOfBusiness' : 'SubjectOfBusiness',
+                    title: title || 'Untitled Section',
+                    content: textContent,
+                    interventions: []
+                };
+            }
+        }
+        
         if (node.Intervention) {
+            if (!currentSection) {
+                 // Create a default "Debate" section if we encounter interventions first
+                 currentSection = { type: 'Debate', title: 'Main Debate', content: '', interventions: [] };
+            }
             const interventionItems = Array.isArray(node.Intervention) ? node.Intervention : [node.Intervention];
             interventionItems.forEach((item: any) => {
                  const intervention: Intervention = {
@@ -114,60 +147,32 @@ export async function GET(req: NextRequest) {
                     });
                 }
                 
-                if(intervention.content.length > 0) {
-                    interventions.push(intervention);
+                if (intervention.content.length > 0 && currentSection) {
+                    currentSection.interventions.push(intervention);
                 }
             });
-        } 
-        
-        if (node.OrderOfBusiness) {
-            const businessItem = Array.isArray(node.OrderOfBusiness) ? node.OrderOfBusiness[0] : node.OrderOfBusiness;
-             if(businessItem) {
-                 const title = businessItem['OrderOfBusinessTitle'];
-                 const textContent = businessItem.Content?.ParaText?.['#text'] || businessItem.Content?.ParaText || '';
-                 if(title || textContent) {
-                    interventions.push({
-                        type: 'OrderOfBusiness',
-                        id: null,
-                        content: [
-                            {type: 'title', value: title},
-                            {type: 'text', value: textContent}
-                        ]
-                    });
-                 }
-             }
-        } 
-        
-        if (node.SubjectOfBusiness) {
-             const businessItem = Array.isArray(node.SubjectOfBusiness) ? node.SubjectOfBusiness[0] : node.SubjectOfBusiness;
-             if(businessItem) {
-                 const title = businessItem['SubjectOfBusinessTitle'];
-                 const textContent = businessItem.Content?.ParaText?.['#text'] || businessItem.Content?.ParaText || '';
-                 if(title || textContent) {
-                    interventions.push({
-                        type: 'SubjectOfBusiness',
-                        id: null,
-                        content: [
-                            {type: 'title', value: title},
-                            {type: 'text', value: textContent}
-                        ]
-                    });
-                 }
-             }
         }
         
         // Always recurse deeper
         for (const key in node) {
-            if (typeof node[key] === 'object') {
-                findInterventions(node[key]);
+            // Avoid re-processing nodes we've handled
+            if (key !== 'OrderOfBusiness' && key !== 'SubjectOfBusiness' && key !== 'Intervention') {
+                if (typeof node[key] === 'object') {
+                    processNodes(node[key]);
+                }
             }
         }
     }
     
-    findInterventions(hansardDoc.HansardBody);
+    // Start processing from the body
+    processNodes(hansardDoc.HansardBody);
+    
+    // Push the last section if it exists
+    if (currentSection) {
+        sections.push(currentSection);
+    }
 
-
-    const responseData: HansardData = { meta, interventions };
+    const responseData: HansardData = { meta, sections };
 
     return NextResponse.json(responseData);
 

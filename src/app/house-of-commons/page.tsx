@@ -22,13 +22,20 @@ interface Intervention {
   id: string | null;
   speaker?: string;
   content: InterventionContent[];
-  summary?: string;
-  isSummarizing?: boolean;
+}
+
+interface Section {
+    type: 'OrderOfBusiness' | 'SubjectOfBusiness' | 'Debate';
+    title: string;
+    content: string;
+    interventions: Intervention[];
+    summary?: string;
+    isSummarizing?: boolean;
 }
 
 interface HansardData {
   meta: { [key:string]: string };
-  interventions: Intervention[];
+  sections: Section[];
 }
 
 
@@ -49,9 +56,9 @@ export default function HouseOfCommonsPage() {
         throw new Error(errorData.error || 'Failed to load Hansard data.');
       }
       const jsonData: HansardData = await res.json();
-      if (!jsonData.interventions || jsonData.interventions.length === 0) {
-        console.error("Parsed data but no interventions found", jsonData);
-        throw new Error("Parsing completed, but no interventions were found in the XML.");
+      if (!jsonData.sections || jsonData.sections.length === 0) {
+        console.error("Parsed data but no sections found", jsonData);
+        throw new Error("Parsing completed, but no sections were found in the XML.");
       }
       setData(jsonData);
 
@@ -71,85 +78,62 @@ export default function HouseOfCommonsPage() {
   const getTextFromContent = (content: InterventionContent[]) => {
     return content.filter(c => c.type === 'text').map(c => c.value).join(' ');
   };
-  
-  const fullTranscript = data?.interventions.map(i => {
-    const speaker = i.speaker || i.content.find(c => c.type === 'title')?.value || i.type || 'Unnamed Section';
-    const text = getTextFromContent(i.content);
-    return `${speaker}:\n${text}`;
-  }).join('\n\n') || '';
 
-  const filteredInterventions = data?.interventions.filter(i => {
-      const fullText = getTextFromContent(i.content).toLowerCase();
-      const speakerName = i.speaker?.toLowerCase() || '';
-      const query = searchQuery.toLowerCase();
-      return fullText.includes(query) || speakerName.includes(query);
-  }) || [];
+  const getFullTranscript = () => {
+    return data?.sections.map(section => {
+      const sectionTitle = `${section.title}\n-----------------\n`;
+      const interventionsText = section.interventions.map(i => {
+        const speaker = i.speaker || 'Unnamed Speaker';
+        const text = getTextFromContent(i.content);
+        return `${speaker}:\n${text}`;
+      }).join('\n\n');
+      return sectionTitle + interventionsText;
+    }).join('\n\n\n') || '';
+  };
   
   const handleSummarizeSection = async (sectionIndex: number) => {
     if (!data) return;
 
-    const section = data.interventions[sectionIndex];
-    const sectionText = getTextFromContent(section.content);
+    const section = data.sections[sectionIndex];
+    // Collect all text from the section's content and its interventions for a comprehensive summary
+    const sectionText = [
+        section.content,
+        ...section.interventions.map(i => `${i.speaker}: ${getTextFromContent(i.content)}`)
+    ].join('\n\n');
+
     
     setData(prev => {
         if (!prev) return null;
-        const newInterventions = [...prev.interventions];
-        newInterventions[sectionIndex] = { ...newInterventions[sectionIndex], isSummarizing: true };
-        return { ...prev, interventions: newInterventions };
+        const newSections = [...prev.sections];
+        newSections[sectionIndex] = { ...newSections[sectionIndex], isSummarizing: true };
+        return { ...prev, sections: newSections };
     });
 
     try {
         const summary = await getSectionSummary(sectionText);
         setData(prev => {
             if (!prev) return null;
-            const newInterventions = [...prev.interventions];
-            newInterventions[sectionIndex] = { ...newInterventions[sectionIndex], summary: summary, isSummarizing: false };
-            return { ...prev, interventions: newInterventions };
+            const newSections = [...prev.sections];
+            newSections[sectionIndex] = { ...newSections[sectionIndex], summary: summary, isSummarizing: false };
+            return { ...prev, sections: newSections };
         });
     } catch (error) {
          toast({ variant: 'destructive', title: 'Summarization Failed' });
          setData(prev => {
             if (!prev) return null;
-            const newInterventions = [...prev.interventions];
-            newInterventions[sectionIndex] = { ...newInterventions[sectionIndex], isSummarizing: false };
-            return { ...prev, interventions: newInterventions };
+            const newSections = [...prev.sections];
+            newSections[sectionIndex] = { ...newSections[sectionIndex], isSummarizing: false };
+            return { ...prev, sections: newSections };
         });
     }
   };
 
   const renderIntervention = (intervention: Intervention, idx: number) => {
-    if (intervention.type === 'OrderOfBusiness' || intervention.type === 'SubjectOfBusiness') {
-      const title = intervention.content.find(c => c.type === 'title')?.value;
-      const text = intervention.content.find(c => c.type === 'text')?.value;
-      return (
-        <div key={idx} className="py-4 my-4 border-y-2 border-primary/20">
-          <div className="flex justify-between items-center mb-2">
-            {title && <h3 className="text-lg font-semibold text-primary">{title}</h3>}
-             <Button size="sm" variant="outline" onClick={() => handleSummarizeSection(idx)} disabled={intervention.isSummarizing}>
-                {intervention.isSummarizing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
-                Summarize Section
-             </Button>
-          </div>
-          {intervention.summary && (
-              <Card className="mb-4 bg-primary/5">
-                <CardHeader className="pb-2">
-                    <CardTitle className="text-sm flex items-center gap-2"><Sparkles className="h-4 w-4" /> AI Summary</CardTitle>
-                </CardHeader>
-                <CardContent>
-                    <p className="text-sm text-primary/90">{intervention.summary}</p>
-                </CardContent>
-              </Card>
-          )}
-          {text && <p className="text-muted-foreground italic">{text}</p>}
-        </div>
-      )
-    }
-
-    // Only render items that are actual interventions with a speaker
-    if (!intervention.speaker) return null;
+    // Only render items that are actual interventions with a speaker and content
+    if (!intervention.speaker || intervention.content.length === 0) return null;
 
     return (
-        <Card key={intervention.id || idx} className="shadow-sm">
+        <Card key={intervention.id || idx} className="shadow-sm mt-4">
         <CardHeader className='pb-3'>
           <CardTitle className="text-base font-semibold flex items-center gap-2">
             <User className="h-4 w-4 text-primary" />
@@ -176,6 +160,22 @@ export default function HouseOfCommonsPage() {
       </Card>
     );
   }
+  
+  // Filter sections and their interventions based on search query
+  const filteredSections = data?.sections.map(section => {
+      const filteredInterventions = section.interventions.filter(i => {
+          const fullText = getTextFromContent(i.content).toLowerCase();
+          const speakerName = i.speaker?.toLowerCase() || '';
+          const query = searchQuery.toLowerCase();
+          return fullText.includes(query) || speakerName.includes(query);
+      });
+
+      // If the section title matches or it has matching interventions, keep it
+      if (section.title.toLowerCase().includes(searchQuery.toLowerCase()) || filteredInterventions.length > 0) {
+          return { ...section, interventions: filteredInterventions };
+      }
+      return null;
+  }).filter((section): section is Section => section !== null) || [];
 
   return (
     <div className="min-h-screen bg-background">
@@ -240,7 +240,7 @@ export default function HouseOfCommonsPage() {
               <AccordionItem value="full-transcript">
                 <AccordionTrigger>View Full Transcript</AccordionTrigger>
                 <AccordionContent>
-                  <pre className="whitespace-pre-wrap font-body text-sm bg-muted p-4 rounded-md max-h-[400px] overflow-auto">{fullTranscript}</pre>
+                  <pre className="whitespace-pre-wrap font-body text-sm bg-muted p-4 rounded-md max-h-[400px] overflow-auto">{getFullTranscript()}</pre>
                 </AccordionContent>
               </AccordionItem>
             </Accordion>
@@ -248,17 +248,44 @@ export default function HouseOfCommonsPage() {
             <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
-                    placeholder={`Search ${filteredInterventions.length} interventions by keyword or speaker...`}
+                    placeholder={`Search ${data.sections.reduce((acc, s) => acc + s.interventions.length, 0)} interventions...`}
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     className="pl-10 w-full"
                 />
             </div>
             
-            <div className="space-y-4">
-                {filteredInterventions.length > 0 ? filteredInterventions.map(renderIntervention) : (
+            <div className="space-y-8">
+                {filteredSections.length > 0 ? filteredSections.map((section, sectionIdx) => (
+                    <div key={sectionIdx} className="py-4 my-4 border-y-2 border-primary/20">
+                        <div className="flex justify-between items-center mb-2">
+                             <h3 className="text-xl font-semibold text-primary">{section.title}</h3>
+                             <Button size="sm" variant="outline" onClick={() => handleSummarizeSection(sectionIdx)} disabled={section.isSummarizing}>
+                                {section.isSummarizing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
+                                Summarize Section
+                             </Button>
+                        </div>
+                        {section.summary && (
+                          <Card className="mb-4 bg-primary/5">
+                            <CardHeader className="pb-2">
+                                <CardTitle className="text-sm flex items-center gap-2"><Sparkles className="h-4 w-4" /> AI Summary</CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                <p className="text-sm text-primary/90">{section.summary}</p>
+                            </CardContent>
+                          </Card>
+                        )}
+                        {section.content && <p className="text-muted-foreground italic mb-4">{section.content}</p>}
+
+                        <div className="pl-4 border-l-2 border-primary/20 space-y-4">
+                            {section.interventions.length > 0 ? section.interventions.map(renderIntervention) : (
+                                <p className="text-sm text-muted-foreground">No debate content for this section.</p>
+                            )}
+                        </div>
+                    </div>
+                )) : (
                     <div className="text-center py-10">
-                        <p className="text-muted-foreground">No interventions match your search query.</p>
+                        <p className="text-muted-foreground">No sections match your search query.</p>
                     </div>
                 )}
             </div>
