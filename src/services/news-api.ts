@@ -40,10 +40,11 @@ export async function searchNews(query: string): Promise<Article[]> {
     throw new Error('NewsAPI key is not configured. Please add NEWS_API_KEY to your .env file.');
   }
 
-  const today = new Date();
-  const fromDate = today.toISOString().split('T')[0]; // YYYY-MM-DD
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  const fromDate = yesterday.toISOString().split('T')[0]; // YYYY-MM-DD
 
-  const url = `https://newsapi.org/v2/everything?q=${encodeURIComponent(query)}&from=${fromDate}&apiKey=${apiKey}&pageSize=10&sortBy=relevancy`;
+  const url = `https://newsapi.org/v2/everything?q=${encodeURIComponent(query)}&from=${fromDate}&to=${fromDate}&apiKey=${apiKey}&pageSize=10&sortBy=relevancy`;
 
   try {
     const response = await fetch(url, { headers: { 'User-Agent': 'NewsFlashAggregator/1.0' } });
