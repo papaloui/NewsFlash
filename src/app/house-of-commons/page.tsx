@@ -79,7 +79,7 @@ export default function HouseOfCommonsPage() {
                           <AccordionContent>
                               <div className="p-4 bg-muted/50 rounded-lg text-xs space-y-4">
                                   <div>
-                                      <h4 className="font-semibold">Source URL:</h4>
+                                      <h4 className="font-semibold">Source API URL:</h4>
                                       <a href={debugInfo.url} target="_blank" rel="noopener noreferrer" className="text-primary break-all">{debugInfo.url}</a>
                                   </div>
                                    <div>
@@ -89,16 +89,16 @@ export default function HouseOfCommonsPage() {
                                       </pre>
                                   </div>
                                    <Accordion type="single" collapsible className="w-full">
-                                      <AccordionItem value="raw-html">
+                                      <AccordionItem value="raw-response">
                                           <AccordionTrigger>
                                              <div className="flex items-center gap-2 text-sm">
                                                  <Code className="h-4 w-4" />
-                                                 Show Raw HTML
+                                                 Show Raw API Response (JSON)
                                              </div>
                                           </AccordionTrigger>
                                           <AccordionContent>
                                               <pre className="whitespace-pre-wrap font-code text-muted-foreground mt-1 p-2 border rounded-md bg-background max-h-80 overflow-y-auto">
-                                                {debugInfo.rawHtml || "No HTML content was fetched."}
+                                                {debugInfo.rawResponse || "No API response was fetched."}
                                               </pre>
                                           </AccordionContent>
                                       </AccordionItem>

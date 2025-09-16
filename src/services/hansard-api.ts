@@ -1,70 +1,73 @@
 'use server';
-import { JSDOM } from 'jsdom';
 
 /**
- * @fileoverview Service for fetching and parsing the House of Commons Hansard.
+ * @fileoverview Service for fetching House of Commons debates from OpenParliament.ca API.
  */
+
+interface Intervention {
+    content: string; // This is HTML content
+    speaker_name: string;
+}
+
+interface DebateApiResponse {
+    objects: Intervention[];
+}
 
 
 /**
- * Fetches the transcript content for a given Hansard URL.
- * In a real app, we'd dynamically find the latest sitting URL. For now, we use a fixed one.
- * @returns An object containing the transcript, the source URL, and the raw HTML.
+ * Fetches the transcript content for yesterday's House of Commons debate from the OpenParliament API.
+ * @returns An object containing the transcript, the source URL, and the raw API response for debugging.
  */
-export async function getHansardContent(): Promise<{transcript: string; url: string; html: string;}> {
-    // This URL is for a recent, known sitting. A full implementation
-    // would require scraping the calendar to find the latest one.
-    const hansardUrl = 'https://www.ourcommons.ca/DocumentViewer/en/44-1/house/sitting-260/hansard';
-    console.log(`Fetching Hansard from: ${hansardUrl}`);
-    let html = '';
+export async function getHansardContent(): Promise<{transcript: string; url: string; rawResponse: string;}> {
+    
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const dateString = yesterday.toISOString().split('T')[0]; // Format as YYYY-MM-DD
+
+    const apiUrl = `https://openparliament.ca/debates/?date=${dateString}&format=json`;
+    console.log(`Fetching Hansard from OpenParliament API: ${apiUrl}`);
+
+    let rawResponse = '';
 
     try {
-        const response = await fetch(hansardUrl, {
+        const response = await fetch(apiUrl, {
              headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+                'User-Agent': 'NewsFlash-App/1.0 (contact@example.com)' // Be a good API citizen
             }
         });
 
         if (!response.ok) {
-            throw new Error(`Failed to fetch Hansard content (status: ${response.status})`);
+            const errorText = await response.text();
+            throw new Error(`Failed to fetch Hansard content (status: ${response.status}). Response: ${errorText}`);
         }
 
-        html = await response.text();
-        const dom = new JSDOM(html);
-        const document = dom.window.document;
+        const data: DebateApiResponse = await response.json();
+        rawResponse = JSON.stringify(data, null, 2);
 
-        const contentElement = document.querySelector('#documentContent');
-
-        if (!contentElement) {
-            // If the main content isn't found, the page might not have loaded correctly.
-            // We'll return an error in the transcript but still provide the raw HTML for debugging.
-            throw new Error('Could not find the main content element (#documentContent) in the Hansard page. The site may be blocking the request or has changed its structure.');
+        if (!data.objects || data.objects.length === 0) {
+            return {
+                transcript: `No debates found on OpenParliament.ca for ${dateString}. This could be because the House was not in session.`,
+                url: apiUrl,
+                rawResponse
+            };
         }
 
-        // The debate content is in cards with the class 'paratext'.
-        // We select all of them and join their text content.
-        const paraTextElements = contentElement.querySelectorAll('.paratext');
-        if (!paraTextElements || paraTextElements.length === 0) {
-            throw new Error("Could not find any 'paratext' elements within #documentContent. The page structure may have changed.");
-        }
-        
         const transcriptParts: string[] = [];
-        paraTextElements.forEach(el => {
-            // Get text and clean up whitespace
-            const text = el.textContent?.replace(/\s\s+/g, ' ').trim();
-            if (text) {
-                transcriptParts.push(text);
+        data.objects.forEach(intervention => {
+            // Strip HTML tags from the content
+            const textContent = intervention.content.replace(/<[^>]+>/g, ' ').replace(/\s\s+/g, ' ').trim();
+            if (textContent) {
+                transcriptParts.push(`**${intervention.speaker_name}**: ${textContent}`);
             }
         });
 
         const fullTranscript = transcriptParts.join('\n\n');
 
-        return { transcript: fullTranscript, url: hansardUrl, html };
+        return { transcript: fullTranscript, url: apiUrl, rawResponse };
 
     } catch (error) {
-        console.error('Error fetching or parsing Hansard content:', error);
+        console.error('Error fetching or parsing Hansard content from API:', error);
         const errorMessage = error instanceof Error ? `Error: ${error.message}` : 'An unknown error occurred while fetching the Hansard transcript.';
-        // Even if we fail, return the HTML we managed to get for debugging purposes.
-        return { transcript: errorMessage, url: hansardUrl, html: html || `Fetching failed: ${errorMessage}` };
+        return { transcript: errorMessage, url: apiUrl, rawResponse: rawResponse || `Fetching failed: ${errorMessage}` };
     }
 }

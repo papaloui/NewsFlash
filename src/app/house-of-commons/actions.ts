@@ -8,7 +8,7 @@ export interface HansardSummaryResponse {
     debugInfo?: {
         url: string;
         transcript: string;
-        rawHtml: string;
+        rawResponse: string; // Changed from rawHtml to rawResponse
     }
 }
 
@@ -17,16 +17,16 @@ export interface HansardSummaryResponse {
  * along with debug information.
  */
 export async function getHansardSummary(): Promise<HansardSummaryResponse> {
-  const { transcript, url, html } = await getHansardContent();
+  const { transcript, url, rawResponse } = await getHansardContent();
 
   const debugInfo = {
       url: url,
       transcript: transcript.substring(0, 5000) + (transcript.length > 5000 ? '... (truncated for display)' : ''),
-      rawHtml: html.substring(0, 20000) + (html.length > 20000 ? '... (truncated for display)' : ''),
+      rawResponse: rawResponse.substring(0, 20000) + (rawResponse.length > 20000 ? '... (truncated for display)' : ''),
   };
   
   try {
-    if (transcript.startsWith('Error:')) {
+    if (transcript.startsWith('Error:') || transcript.startsWith('No debates found')) {
         return { summary: transcript, debugInfo };
     }
     
