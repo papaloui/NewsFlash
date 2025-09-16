@@ -60,7 +60,7 @@ const agentPrompt = ai.definePrompt({
 
 export async function newsAgent(input: NewsAgentInput): Promise<NewsAgentOutput> {
   const llmResponse = await agentPrompt(input);
-  const toolCalls = llmResponse.toolCalls();
+  const toolCalls = llmResponse.toolCalls;
 
   let toolOutputs: any[] = [];
   if (toolCalls.length > 0) {
@@ -85,7 +85,7 @@ export async function newsAgent(input: NewsAgentInput): Promise<NewsAgentOutput>
   
   const finalResponse = await agentPrompt(input, { toolResponse: toolOutputs });
   
-  const output = finalResponse.output();
+  const output = finalResponse.output;
 
   if (output?.articles && output.articles.length > 0 && !output.digest) {
     const digestSummary = await summarizeHeadlinesDigest(output.articles.map(a => a.headline));
