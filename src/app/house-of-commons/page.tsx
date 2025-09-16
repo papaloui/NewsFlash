@@ -1,17 +1,18 @@
+
 'use client';
 
 import { useState } from 'react';
 import { Header } from '@/components/app/header';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
-import { Landmark, Loader2, Search, BookOpen, Clock, Languages, User, Building, ExternalLink } from 'lucide-react';
+import { Landmark, Loader2, Search, BookOpen, Clock, Languages, User, FileText as FileTextIcon, ExternalLink } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 
 interface InterventionContent {
-  type: 'text' | 'timestamp' | 'language';
+  type: 'text' | 'timestamp' | 'language' | 'title';
   value: string;
 }
 
@@ -19,12 +20,11 @@ interface Intervention {
   type: string | null;
   id: string | null;
   speaker?: string;
-  affiliation?: string;
   content: InterventionContent[];
 }
 
 interface HansardData {
-  meta: { [key: string]: string };
+  meta: { [key:string]: string };
   interventions: Intervention[];
 }
 
@@ -70,7 +70,7 @@ export default function HouseOfCommonsPage() {
   };
   
   const fullTranscript = data?.interventions.map(i => {
-    const speaker = i.speaker || 'Unknown Speaker';
+    const speaker = i.speaker || i.type || 'Unknown Speaker';
     const text = getTextFromContent(i.content);
     return `${speaker}:\n${text}`;
   }).join('\n\n') || '';
@@ -81,6 +81,47 @@ export default function HouseOfCommonsPage() {
       const query = searchQuery.toLowerCase();
       return fullText.includes(query) || speakerName.includes(query);
   }) || [];
+
+  const renderIntervention = (intervention: Intervention, idx: number) => {
+    if (intervention.type === 'OrderOfBusiness' || intervention.type === 'SubjectOfBusiness') {
+      const title = intervention.content.find(c => c.type === 'title')?.value;
+      const text = intervention.content.find(c => c.type === 'text')?.value;
+      return (
+        <div key={idx} className="py-4 my-4 border-y-2 border-primary/20">
+          {title && <h3 className="text-lg font-semibold text-primary mb-2">{title}</h3>}
+          {text && <p className="text-muted-foreground italic">{text}</p>}
+        </div>
+      )
+    }
+
+    return (
+        <Card key={intervention.id || idx} className="shadow-sm">
+        <CardHeader className='pb-3'>
+          <CardTitle className="text-base font-semibold flex items-center gap-2">
+            <User className="h-4 w-4 text-primary" />
+            {intervention.speaker || 'Unknown Speaker'}
+          </CardTitle>
+          {intervention.type && <Badge variant="secondary" className="w-fit mt-1">{intervention.type}</Badge>}
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-3">
+            {intervention.content.map((item, index) => {
+              if (item.type === 'text') {
+                return <p key={index} className="whitespace-pre-wrap font-body text-sm leading-relaxed">{item.value}</p>
+              }
+              if (item.type === 'timestamp') {
+                return <div key={index} className="flex items-center gap-2 text-xs text-muted-foreground font-mono"> <Clock className="h-3 w-3" /> {item.value} </div>
+              }
+              if (item.type === 'language') {
+                 return <div key={index} className="flex items-center gap-2 text-xs text-blue-600 italic"> <Languages className="h-3 w-3" /> {item.value} </div>
+              }
+              return null;
+            })}
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -93,7 +134,7 @@ export default function HouseOfCommonsPage() {
               House of Commons Debates
             </CardTitle>
             <CardDescription>
-              Fetch and parse transcripts from a Hansard XML URL using Paratext analysis.
+              Fetch and parse transcripts from a Hansard XML URL.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -160,41 +201,7 @@ export default function HouseOfCommonsPage() {
                 />
             </div>
             
-            {filteredInterventions.length > 0 ? filteredInterventions.map((intervention, idx) => (
-              <Card key={intervention.id || idx} className="shadow-sm">
-                <CardHeader className='pb-3'>
-                  <CardTitle className="text-base font-semibold flex items-center gap-2">
-                    <User className="h-4 w-4 text-primary" />
-                    {intervention.speaker || 'Unknown Speaker'}
-                  </CardTitle>
-                  <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                    {intervention.affiliation && (
-                       <div className="flex items-center gap-1.5">
-                         <Building className="h-3 w-3" />
-                         <span>{intervention.affiliation}</span>
-                       </div>
-                    )}
-                     {intervention.type && <Badge variant="secondary">{intervention.type}</Badge>}
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    {intervention.content.map((item, index) => {
-                      if (item.type === 'text') {
-                        return <p key={index} className="whitespace-pre-wrap font-body text-sm leading-relaxed">{item.value}</p>
-                      }
-                      if (item.type === 'timestamp') {
-                        return <div key={index} className="flex items-center gap-2 text-xs text-muted-foreground font-mono"> <Clock className="h-3 w-3" /> {item.value} </div>
-                      }
-                      if (item.type === 'language') {
-                         return <div key={index} className="flex items-center gap-2 text-xs text-blue-600 italic"> <Languages className="h-3 w-3" /> {item.value} </div>
-                      }
-                      return null;
-                    })}
-                  </div>
-                </CardContent>
-              </Card>
-            )) : (
+            {filteredInterventions.length > 0 ? filteredInterventions.map(renderIntervention) : (
                 <div className="text-center py-10">
                     <p className="text-muted-foreground">No interventions match your search query.</p>
                 </div>

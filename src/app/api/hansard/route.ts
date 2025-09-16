@@ -1,3 +1,4 @@
+
 import { NextRequest, NextResponse } from "next/server";
 import { XMLParser } from "fast-xml-parser";
 
@@ -93,20 +94,11 @@ export async function GET(req: NextRequest) {
                     // Extract speaker and affiliation
                     if (item.PersonSpeaking) {
                         const personNode = item.PersonSpeaking;
-                        const speakerText = personNode['#text'] || personNode.Affiliation?.['#text'];
-                        intervention.speaker = speakerText?.replace(':', '').trim();
-                        
-                        if (personNode.Affiliation && personNode.Affiliation['#text']) {
-                             const affiliationText = personNode.Affiliation['#text'];
-                             // If speaker was accidentally set to affiliation, find the real speaker name
-                             if (intervention.speaker === affiliationText) {
-                                const fullText = personNode['#text'];
-                                if(fullText) {
-                                    intervention.speaker = fullText.replace(affiliationText, '').replace(':', '').trim();
-                                }
-                             }
-                             intervention.affiliation = affiliationText;
-                        }
+                        // The speaker name is the text node within PersonSpeaking, excluding the Affiliation part.
+                        let fullText = personNode['#text'] || '';
+                        let affiliationText = personNode.Affiliation?.['#text'] || '';
+                        let speakerName = fullText.replace(affiliationText, '').replace(':', '').trim();
+                        intervention.speaker = speakerName;
                     }
                     
                     // Extract content
@@ -131,6 +123,22 @@ export async function GET(req: NextRequest) {
                         interventions.push(intervention);
                     }
                 });
+            } else if (key === 'OrderOfBusiness' || key === 'SubjectOfBusiness') {
+                const businessItem = Array.isArray(node[key]) ? node[key][0] : node[key];
+                 if(businessItem) {
+                     const title = businessItem[`${key}Title`];
+                     const textContent = businessItem.Content?.ParaText?.['#text'] || businessItem.Content?.ParaText || '';
+                     if(title || textContent) {
+                        interventions.push({
+                            type: key,
+                            id: null,
+                            content: [
+                                {type: 'title', value: title},
+                                {type: 'text', value: textContent}
+                            ]
+                        });
+                     }
+                 }
             } else if (typeof node[key] === 'object') {
                 findInterventions(node[key]);
             }
