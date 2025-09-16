@@ -43,7 +43,7 @@ export function HansardChat({ transcript, summary }: HansardChatProps) {
     };
 
     return (
-        <Card className="mt-6 sticky bottom-4">
+        <Card className="mt-6">
             <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                     <Bot />
@@ -51,7 +51,7 @@ export function HansardChat({ transcript, summary }: HansardChatProps) {
                 </CardTitle>
             </CardHeader>
             <CardContent>
-                <ScrollArea className="h-64 pr-4 mb-4 border rounded-md">
+                <ScrollArea className="h-96 pr-4 mb-4 border rounded-md">
                    <div className="space-y-4 p-4">
                         {messages.length === 0 && (
                             <div className="text-center text-muted-foreground">
