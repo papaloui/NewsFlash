@@ -1,12 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { XMLParser } from "fast-xml-parser";
 
+interface InterventionContent {
+  type: string;
+  value: string;
+}
+
 interface Intervention {
   type: string | null;
   id: string | null;
   speaker?: string;
   affiliation?: string;
-  content: { type: string; value: string; }[];
+  content: InterventionContent[];
 }
 
 interface HansardData {
