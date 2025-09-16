@@ -16,6 +16,7 @@ export async function getHansardContent(): Promise<{transcript: string; url: str
     // would require scraping the calendar to find the latest one.
     const hansardUrl = 'https://www.ourcommons.ca/DocumentViewer/en/44-1/house/sitting-260/hansard';
     console.log(`Fetching Hansard from: ${hansardUrl}`);
+    let html = '';
 
     try {
         const response = await fetch(hansardUrl, {
@@ -28,14 +29,16 @@ export async function getHansardContent(): Promise<{transcript: string; url: str
             throw new Error(`Failed to fetch Hansard content (status: ${response.status})`);
         }
 
-        const html = await response.text();
+        html = await response.text();
         const dom = new JSDOM(html);
         const document = dom.window.document;
 
         const contentElement = document.querySelector('#documentContent');
 
         if (!contentElement) {
-            throw new Error('Could not find the main content element (#documentContent) in the Hansard page.');
+            // If the main content isn't found, the page might not have loaded correctly.
+            // We'll return an error in the transcript but still provide the raw HTML for debugging.
+            throw new Error('Could not find the main content element (#documentContent) in the Hansard page. The site may be blocking the request or has changed its structure.');
         }
 
         // The debate content is in cards with the class 'paratext'.
@@ -61,6 +64,7 @@ export async function getHansardContent(): Promise<{transcript: string; url: str
     } catch (error) {
         console.error('Error fetching or parsing Hansard content:', error);
         const errorMessage = error instanceof Error ? `Error: ${error.message}` : 'An unknown error occurred while fetching the Hansard transcript.';
-        return { transcript: errorMessage, url: hansardUrl, html: `Error fetching content: ${errorMessage}` };
+        // Even if we fail, return the HTML we managed to get for debugging purposes.
+        return { transcript: errorMessage, url: hansardUrl, html: html || `Fetching failed: ${errorMessage}` };
     }
 }
