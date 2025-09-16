@@ -21,7 +21,7 @@ export async function searchWeb(query: string): Promise<WebSearchResult[]> {
 
   // This is placeholder data. A real implementation would fetch from a search API.
   const mockResults: Record<string, WebSearchResult[]> = {
-    "when were the tariffs first instituted by the US": [
+    "when were the tariffs first instituted by the us": [
       {
         title: "Tariff Act of 1789 - Wikipedia",
         link: "https://en.wikipedia.org/wiki/Tariff_Act_of_1789",

@@ -79,14 +79,17 @@ export async function newsAgent(input: NewsAgentInput): Promise<NewsAgentOutput>
         })
       );
   } else {
-    // If no tool is called, but the user is asking for news, call the news tool by default.
+    // If no tool is called, but the user seems to be asking for news, call the news tool by default.
+    // A more sophisticated check could be done here, e.g., using another LLM call to classify the intent.
     const toolCall = {
         name: 'searchNews',
         input: { query: input.query },
     };
     const tool = agentTools[toolCall.name];
-    const output = await tool.run(toolCall.input);
-    toolOutputs.push({ call: toolCall, output: output });
+    if (tool) {
+        const output = await tool.run(toolCall.input);
+        toolOutputs.push({ call: toolCall, output: output });
+    }
   }
   
   const finalResponse = await agentPrompt(input, { toolResponse: toolOutputs });
