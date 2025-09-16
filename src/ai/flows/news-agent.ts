@@ -39,9 +39,9 @@ const webSearchTool = ai.defineTool(
   async ({ query }) => searchWeb(query)
 );
 
-const agentTools = {
-    [newsSearchTool.name]: newsSearchTool,
-    [webSearchTool.name]: webSearchTool,
+const agentTools: Record<string, any> = {
+    searchNews: newsSearchTool,
+    searchWeb: webSearchTool,
 };
 
 
@@ -69,7 +69,6 @@ export async function newsAgent(input: NewsAgentInput): Promise<NewsAgentOutput>
   const llmResponse = await agentPrompt(input);
   let toolOutputs: any[] = [];
   
-  // If the model wants to call a tool, let it.
   if (llmResponse.toolCalls && llmResponse.toolCalls.length > 0) {
       toolOutputs = await Promise.all(
         llmResponse.toolCalls.map(async (toolCall) => {
@@ -91,7 +90,7 @@ export async function newsAgent(input: NewsAgentInput): Promise<NewsAgentOutput>
   
   const output = finalResponse.output;
 
-  if (output?.articles && output.articles.length > 0 && !output.digest) {
+  if (output?.articles && output.articles.length > 0) {
     // Take only the top 10 headlines for the digest
     const headlines = output.articles.slice(0, 10).map(a => a.headline);
     if(headlines.length > 0) {
