@@ -5,11 +5,12 @@ import { useState } from 'react';
 import { Header } from '@/components/app/header';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
-import { Landmark, Loader2, Search, BookOpen, Clock, Languages, User, FileText as FileTextIcon, ExternalLink } from 'lucide-react';
+import { Landmark, Loader2, Search, BookOpen, Clock, Languages, User, FileText as FileTextIcon, ExternalLink, Sparkles } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import { getSectionSummary } from './actions';
 
 interface InterventionContent {
   type: 'text' | 'timestamp' | 'language' | 'title';
@@ -21,6 +22,8 @@ interface Intervention {
   id: string | null;
   speaker?: string;
   content: InterventionContent[];
+  summary?: string;
+  isSummarizing?: boolean;
 }
 
 interface HansardData {
@@ -81,6 +84,38 @@ export default function HouseOfCommonsPage() {
       const query = searchQuery.toLowerCase();
       return fullText.includes(query) || speakerName.includes(query);
   }) || [];
+  
+  const handleSummarizeSection = async (sectionIndex: number) => {
+    if (!data) return;
+
+    const section = data.interventions[sectionIndex];
+    const sectionText = getTextFromContent(section.content);
+    
+    setData(prev => {
+        if (!prev) return null;
+        const newInterventions = [...prev.interventions];
+        newInterventions[sectionIndex] = { ...newInterventions[sectionIndex], isSummarizing: true };
+        return { ...prev, interventions: newInterventions };
+    });
+
+    try {
+        const summary = await getSectionSummary(sectionText);
+        setData(prev => {
+            if (!prev) return null;
+            const newInterventions = [...prev.interventions];
+            newInterventions[sectionIndex] = { ...newInterventions[sectionIndex], summary: summary, isSummarizing: false };
+            return { ...prev, interventions: newInterventions };
+        });
+    } catch (error) {
+         toast({ variant: 'destructive', title: 'Summarization Failed' });
+         setData(prev => {
+            if (!prev) return null;
+            const newInterventions = [...prev.interventions];
+            newInterventions[sectionIndex] = { ...newInterventions[sectionIndex], isSummarizing: false };
+            return { ...prev, interventions: newInterventions };
+        });
+    }
+  };
 
   const renderIntervention = (intervention: Intervention, idx: number) => {
     if (intervention.type === 'OrderOfBusiness' || intervention.type === 'SubjectOfBusiness') {
@@ -88,7 +123,23 @@ export default function HouseOfCommonsPage() {
       const text = intervention.content.find(c => c.type === 'text')?.value;
       return (
         <div key={idx} className="py-4 my-4 border-y-2 border-primary/20">
-          {title && <h3 className="text-lg font-semibold text-primary mb-2">{title}</h3>}
+          <div className="flex justify-between items-center mb-2">
+            {title && <h3 className="text-lg font-semibold text-primary">{title}</h3>}
+             <Button size="sm" variant="outline" onClick={() => handleSummarizeSection(idx)} disabled={intervention.isSummarizing}>
+                {intervention.isSummarizing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
+                Summarize Section
+             </Button>
+          </div>
+          {intervention.summary && (
+              <Card className="mb-4 bg-primary/5">
+                <CardHeader className="pb-2">
+                    <CardTitle className="text-sm flex items-center gap-2"><Sparkles className="h-4 w-4" /> AI Summary</CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <p className="text-sm text-primary/90">{intervention.summary}</p>
+                </CardContent>
+              </Card>
+          )}
           {text && <p className="text-muted-foreground italic">{text}</p>}
         </div>
       )
