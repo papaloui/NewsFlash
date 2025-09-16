@@ -19,6 +19,11 @@ const defaultCollections: FeedCollection[] = [
         id: "2",
         name: "Tech News",
         feeds: ["https://techcrunch.com/feed/", "https://www.theverge.com/rss/index.xml", "https://www.wired.com/feed/rss"]
+    },
+    {
+        id: "3",
+        name: "Canadian News",
+        feeds: ["https://www.cbc.ca/webfeed/rss/rss-canada"]
     }
 ];
 
