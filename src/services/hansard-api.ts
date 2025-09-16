@@ -9,9 +9,9 @@ import { JSDOM } from 'jsdom';
 /**
  * Fetches the transcript content for a given Hansard URL.
  * In a real app, we'd dynamically find the latest sitting URL. For now, we use a fixed one.
- * @returns The text content of the Hansard transcript.
+ * @returns An object containing the transcript and the source URL.
  */
-export async function getHansardContent(): Promise<string> {
+export async function getHansardContent(): Promise<{transcript: string; url: string;}> {
     // This URL is for a recent, known sitting. A full implementation
     // would require scraping the calendar to find the latest one.
     const hansardUrl = 'https://www.ourcommons.ca/DocumentViewer/en/44-1/house/sitting-260/hansard';
@@ -56,13 +56,11 @@ export async function getHansardContent(): Promise<string> {
 
         const fullTranscript = transcriptParts.join('\n\n');
 
-        return fullTranscript;
+        return { transcript: fullTranscript, url: hansardUrl };
 
     } catch (error) {
         console.error('Error fetching or parsing Hansard content:', error);
-        if (error instanceof Error) {
-            return `Error: ${error.message}`;
-        }
-        return 'An unknown error occurred while fetching the Hansard transcript.';
+        const errorMessage = error instanceof Error ? `Error: ${error.message}` : 'An unknown error occurred while fetching the Hansard transcript.';
+        return { transcript: errorMessage, url: hansardUrl };
     }
 }
