@@ -3,7 +3,7 @@
 import { rankArticles } from '@/ai/flows/rank-articles-by-relevance';
 import { summarizeArticle } from '@/ai/flows/summarize-article';
 import { summarizeHeadline } from '@/ai/flows/summarize-headline';
-import type { SummarizedArticle, Article } from '@/lib/types';
+import type { SummarizedArticle, Article, RankedArticle } from '@/lib/types';
 
 // A very basic XML parser to extract items from an RSS feed.
 // This is fragile and only works for simple, standard RSS structures.
@@ -19,16 +19,20 @@ function parseRss(rssText: string, source: string): Article[] {
     const linkMatch = /<link>(.*?)<\/link>/s.exec(itemContent);
     const pubDateMatch = /<pubDate>(.*?)<\/pubDate>/s.exec(itemContent);
     const sourceMatch = /<dc:creator><!\[CDATA\[(.*?)\]\]><\/dc:creator>|<source.*?>(.*?)<\/source>/s.exec(itemContent);
+    const descriptionMatch = /<description><!\[CDATA\[(.*?)\]\]><\/description>|<description>(.*?)<\/description>/s.exec(itemContent);
 
-    const headline = titleMatch ? (titleMatch[1] || titleMatch[2]).trim() : 'No title';
+    const headline = titleMatch ? (titleMatch[1] || titleMatch[2] || '').trim() : 'No title';
     const link = linkMatch ? linkMatch[1].trim() : '';
     const publicationDate = pubDateMatch ? new Date(pubDateMatch[1].trim()).toLocaleDateString() : 'No date';
-    const articleSource = sourceMatch ? (sourceMatch[1] || sourceMatch[2]).trim() : source;
+    const articleSource = sourceMatch ? (sourceMatch[1] || sourceMatch[2] || '').trim() : source;
+    // Attempt to get a summary, remove HTML tags. Fallback to headline.
+    const summary = descriptionMatch ? (descriptionMatch[1] || descriptionMatch[2] || '').replace(/<[^>]+>/g, '').trim() : headline;
+
 
     if (headline && link) {
       items.push({
         headline,
-        summary: '', // Will be filled by AI
+        summary: summary,
         link,
         source: articleSource,
         publicationDate,
@@ -94,45 +98,42 @@ export async function processFeeds(feedUrls: string[]): Promise<SummarizedArticl
     // Limit to 10 articles to avoid overwhelming AI services
     allArticles = allArticles.slice(0, 10);
 
-    // 2. Headline Summarization for each article
-    const articlesWithHeadlineSummariesPromises = allArticles.map(async (article) => {
-      try {
-        const headlineSummary = await summarizeHeadline({ headline: article.headline });
-        return { ...article, summary: headlineSummary.summary };
-      } catch (e) {
-        console.error(`Failed to summarize headline for: ${article.headline}`, e);
-        return { ...article, summary: 'Summary unavailable.' };
-      }
-    });
-
-    const articlesWithHeadlineSummaries = await Promise.all(articlesWithHeadlineSummariesPromises);
-
-    // 3. Rank articles and select top 1
-    const rankedArticles = await rankArticles(articlesWithHeadlineSummaries);
-    const topArticle = rankedArticles.sort((a, b) => b.relevanceScore - a.relevanceScore).slice(0, 1);
+    // 2. Rank articles based on feed-provided info and select top 1
+    const rankedArticles = await rankArticles(allArticles);
+    const topArticles = rankedArticles.sort((a, b) => b.relevanceScore - a.relevanceScore).slice(0, 1);
     
-    if (topArticle.length === 0) {
+    if (topArticles.length === 0) {
         throw new Error("AI could not rank any articles.");
     }
 
-    // 4. Fetch article content and get full summary for the top article
-    const finalArticlesPromises = topArticle.map(async (article) => {
+    // 3. Perform AI summarization ONLY on the top article
+    const finalArticlesPromises = topArticles.map(async (article) => {
       try {
+        // Headline summary
+        const headlineSummary = await summarizeHeadline({ headline: article.headline });
+
+        // Full article summary
         const response = await fetch(article.link, { headers: { 'User-Agent': 'NewsFlashAggregator/1.0' } });
         if (!response.ok) throw new Error(`Failed to fetch article content for ${article.link}`);
         const html = await response.text();
         const articleContent = extractArticleContent(html);
         
-        if (articleContent.length < 100) { // Check if content is substantial
-             return { ...article, fullSummary: "Could not extract sufficient article content for a summary." };
+        let fullSummary = "Could not extract sufficient article content for a summary.";
+        if (articleContent.length >= 100) { // Check if content is substantial
+             const articleSummary = await summarizeArticle({ articleUrl: article.link, articleContent: articleContent.substring(0, 8000) }); // Limit content size
+             fullSummary = articleSummary.summary;
         }
         
-        const articleSummary = await summarizeArticle({ articleUrl: article.link, articleContent: articleContent.substring(0, 8000) }); // Limit content size for AI
-        return { ...article, fullSummary: articleSummary.summary };
+        return { 
+            ...article, 
+            summary: headlineSummary.summary, 
+            fullSummary: fullSummary 
+        };
 
       } catch (e) {
         console.error(`Failed to summarize article content for: ${article.headline}`, e);
-        return { ...article, fullSummary: 'Full summary unavailable.' };
+        const errorMessage = e instanceof Error ? e.message : "Full summary unavailable.";
+        return { ...article, summary: 'Summary unavailable.', fullSummary: errorMessage };
       }
     });
 
