@@ -39,6 +39,12 @@ const webSearchTool = ai.defineTool(
   async ({ query }) => searchWeb(query)
 );
 
+const agentTools = {
+    [newsSearchTool.name]: newsSearchTool,
+    [webSearchTool.name]: webSearchTool,
+};
+
+
 const agentPrompt = ai.definePrompt({
     name: 'newsAgentPrompt',
     input: { schema: NewsAgentInputSchema },
@@ -66,7 +72,7 @@ export async function newsAgent(input: NewsAgentInput): Promise<NewsAgentOutput>
   if (toolCalls && toolCalls.length > 0) {
       toolOutputs = await Promise.all(
         toolCalls.map(async (toolCall) => {
-            const tool = agentPrompt.tools[toolCall.name];
+            const tool = agentTools[toolCall.name];
             if (!tool) throw new Error(`Unknown tool: ${toolCall.name}`);
             const output = await tool.run(toolCall.input);
             return { call: toolCall, output };
@@ -78,7 +84,7 @@ export async function newsAgent(input: NewsAgentInput): Promise<NewsAgentOutput>
         name: 'searchNews',
         input: { query: input.query },
     };
-    const tool = agentPrompt.tools[toolCall.name];
+    const tool = agentTools[toolCall.name];
     const output = await tool.run(toolCall.input);
     toolOutputs.push({ call: toolCall, output: output });
   }
