@@ -1,14 +1,16 @@
-import type { RankedArticle } from "@/lib/types";
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Calendar, Globe, ExternalLink, Star } from "lucide-react";
+import { Calendar, Globe, ExternalLink, Star, FileText, Loader2 } from "lucide-react";
 import { Badge } from "../ui/badge";
+import type { ArticleWithSummary } from "@/app/page";
+import { Separator } from "../ui/separator";
 
 interface ArticleCardProps {
-  article: RankedArticle;
+  article: ArticleWithSummary;
+  onSummarize: (link: string) => void;
 }
 
-export function ArticleCard({ article }: ArticleCardProps) {
+export function ArticleCard({ article, onSummarize }: ArticleCardProps) {
   
   const relevanceColor = (score: number) => {
     if (score > 0.8) return 'bg-green-100 border-green-300 text-green-800';
@@ -41,14 +43,33 @@ export function ArticleCard({ article }: ArticleCardProps) {
       </CardHeader>
       <CardContent className="flex-grow">
           <p className="text-sm text-muted-foreground">{article.summary}</p>
+          {article.fullSummary && (
+            <div className="mt-4 pt-4 border-t">
+              <h4 className="text-sm font-semibold mb-2 flex items-center gap-2">
+                <FileText className="h-4 w-4" />
+                Article Summary
+              </h4>
+              <p className="text-sm text-muted-foreground">{article.fullSummary}</p>
+            </div>
+          )}
       </CardContent>
-      <CardFooter>
+      <CardFooter className="flex items-center justify-between">
         <Button asChild variant="outline" size="sm">
           <a href={article.link} target="_blank" rel="noopener noreferrer">
             <ExternalLink className="mr-2 h-4 w-4" />
             Read Original
           </a>
         </Button>
+        {!article.fullSummary && (
+            <Button onClick={() => onSummarize(article.link)} disabled={article.isSummarizing} size="sm">
+                {article.isSummarizing ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                    <FileText className="mr-2 h-4 w-4" />
+                )}
+                Summarize
+            </Button>
+        )}
       </CardFooter>
     </Card>
   );

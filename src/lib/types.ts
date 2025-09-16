@@ -9,7 +9,3 @@ export interface Article {
 export interface RankedArticle extends Article {
   relevanceScore: number;
 }
-
-export interface SummarizedArticle extends RankedArticle {
-  fullSummary: string;
-}

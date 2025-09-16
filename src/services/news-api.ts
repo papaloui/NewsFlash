@@ -24,6 +24,7 @@ interface NewsApiResponse {
   status: string;
   totalResults: number;
   articles: NewsApiArticle[];
+  message?: string;
 }
 
 /**
@@ -39,7 +40,10 @@ export async function searchNews(query: string): Promise<Article[]> {
     throw new Error('NewsAPI key is not configured. Please add NEWS_API_KEY to your .env file.');
   }
 
-  const url = `https://newsapi.org/v2/everything?q=${encodeURIComponent(query)}&apiKey=${apiKey}&pageSize=10&sortBy=relevancy`;
+  const today = new Date();
+  const fromDate = today.toISOString().split('T')[0]; // YYYY-MM-DD
+
+  const url = `https://newsapi.org/v2/everything?q=${encodeURIComponent(query)}&from=${fromDate}&apiKey=${apiKey}&pageSize=10&sortBy=relevancy`;
 
   try {
     const response = await fetch(url, { headers: { 'User-Agent': 'NewsFlashAggregator/1.0' } });
