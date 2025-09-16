@@ -10,7 +10,7 @@ import { Sparkles } from 'lucide-react';
 import type { ArticleWithSummary } from '@/lib/schemas';
 
 interface ChatInterfaceProps {
-    setArticles: (articles: ArticleWithSummary[]) => void;
+    setArticles: (articles: ArticleWithSummary[] | ((prev: ArticleWithSummary[]) => ArticleWithSummary[])) => void;
     setIsFetching: (isFetching: boolean) => void;
     setDigest: (digest: string | null) => void;
 }
@@ -34,6 +34,8 @@ export function ChatInterface({ setArticles, setIsFetching, setDigest }: ChatInt
             if (result.articles) {
                  const sortedResults = result.articles.sort((a, b) => b.relevanceScore - a.relevanceScore);
                  setArticles(sortedResults);
+            } else {
+                 setArticles([]); // Clear articles if none are returned
             }
 
             if (result.digest) {
@@ -41,12 +43,11 @@ export function ChatInterface({ setArticles, setIsFetching, setDigest }: ChatInt
             }
 
             if (result.response) {
+                // When we get a direct response, we don't want to clear the existing news digest
                 toast({
                     title: 'AI Response',
                     description: result.response,
                 });
-                // Clear articles if we get a direct response
-                setArticles([]); 
             }
 
         } catch (error) {
@@ -72,7 +73,7 @@ export function ChatInterface({ setArticles, setIsFetching, setDigest }: ChatInt
                         value={query}
                         onChange={(e) => setQuery(e.target.value)}
                         onKeyDown={(e) => e.key === 'Enter' && handleQuery()}
-                        placeholder="Ask for news, summaries, or anything else..."
+                        placeholder="Ask about the news or anything else..."
                         disabled={isThinking}
                     />
                     <Button onClick={handleQuery} disabled={isThinking}>
@@ -81,7 +82,7 @@ export function ChatInterface({ setArticles, setIsFetching, setDigest }: ChatInt
                     </Button>
                 </div>
                 <p className="text-xs text-muted-foreground mt-2">
-                    e.g., "What's the latest in AI?", "Summarize the top business news", "When were the first US tariffs?"
+                    e.g., "What's the latest in AI?", "Summarize the top business news", "Who is the CEO of Google?"
                 </p>
             </CardContent>
         </Card>

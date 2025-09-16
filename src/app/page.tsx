@@ -22,7 +22,8 @@ export default function Home() {
     const fetchInitialDigest = async () => {
       setIsFetching(true);
       try {
-        const result = await newsAgent({ query: 'global news' });
+        // Fetch top headlines from curated sources
+        const result = await newsAgent({ query: 'top headlines' });
         if (result.articles) {
           const sortedResults = result.articles.sort((a, b) => b.relevanceScore - a.relevanceScore);
           setArticles(sortedResults);

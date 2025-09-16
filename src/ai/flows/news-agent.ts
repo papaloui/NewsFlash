@@ -18,7 +18,7 @@ import { NewsAgentInputSchema, NewsAgentOutputSchema } from '@/lib/schemas';
 const newsSearchTool = ai.defineTool(
   {
     name: 'searchNews',
-    description: 'Search for recent news articles on a given topic. Use this for queries about current events.',
+    description: 'Search for recent news articles. Use this for queries about current events, top headlines, or specific news topics.',
     inputSchema: z.object({ query: z.string() }),
     outputSchema: z.any(),
   },
@@ -52,8 +52,9 @@ const agentPrompt = ai.definePrompt({
     tools: [newsSearchTool, webSearchTool],
     prompt: `You are a helpful news assistant.
     
-    - If the user asks for news (e.g., "latest on AI", "business news"), use the searchNews tool to find relevant articles. Then, rank them by relevance and set the relevanceScore.
+    - Your primary function is to provide users with news. If the user's query is about news (e.g., "latest on AI", "business news", "top headlines"), use the searchNews tool.
     - After fetching news, ALWAYS generate a brief, 1-2 sentence digest of all the headlines combined.
+    - When searching for news, you must rank the articles by relevance to the user's query and set the relevanceScore for each article. A score of 1 is most relevant.
     - If the user asks a general knowledge question (e.g., "when was X invented?"), use the searchWeb tool. Synthesize the web search results into a concise answer for the 'response' field.
     - If you use the searchNews tool, do not populate the 'response' field. The UI will display the articles.
     - If you use the searchWeb tool, populate the 'response' field with the answer and do not return any articles.
@@ -66,12 +67,12 @@ const agentPrompt = ai.definePrompt({
 
 export async function newsAgent(input: NewsAgentInput): Promise<NewsAgentOutput> {
   const llmResponse = await agentPrompt(input);
-  const toolCalls = llmResponse.toolCalls;
-
   let toolOutputs: any[] = [];
-  if (toolCalls && toolCalls.length > 0) {
+  
+  // If the model wants to call a tool, let it.
+  if (llmResponse.toolCalls && llmResponse.toolCalls.length > 0) {
       toolOutputs = await Promise.all(
-        toolCalls.map(async (toolCall) => {
+        llmResponse.toolCalls.map(async (toolCall) => {
             const tool = agentTools[toolCall.name];
             if (!tool) throw new Error(`Unknown tool: ${toolCall.name}`);
             const output = await tool.run(toolCall.input);
@@ -79,17 +80,11 @@ export async function newsAgent(input: NewsAgentInput): Promise<NewsAgentOutput>
         })
       );
   } else {
-    // If no tool is called, but the user seems to be asking for news, call the news tool by default.
-    // A more sophisticated check could be done here, e.g., using another LLM call to classify the intent.
-    const toolCall = {
-        name: 'searchNews',
-        input: { query: input.query },
-    };
-    const tool = agentTools[toolCall.name];
-    if (tool) {
-        const output = await tool.run(toolCall.input);
-        toolOutputs.push({ call: toolCall, output: output });
-    }
+    // If no tool is called, but the user is likely asking for news, call the news tool by default.
+    // This handles simple queries like "AI news" or the initial "top headlines" load.
+     const tool = agentTools.searchNews;
+     const output = await tool.run({ query: input.query });
+     toolOutputs.push({ call: { name: 'searchNews', input: { query: input.query } }, output });
   }
   
   const finalResponse = await agentPrompt(input, { toolResponse: toolOutputs });
@@ -97,8 +92,11 @@ export async function newsAgent(input: NewsAgentInput): Promise<NewsAgentOutput>
   const output = finalResponse.output;
 
   if (output?.articles && output.articles.length > 0 && !output.digest) {
-    const digestSummary = await summarizeHeadlinesDigest(output.articles.map(a => a.headline));
-    output.digest = digestSummary.digest;
+    const headlines = output.articles.map(a => a.headline);
+    if(headlines.length > 0) {
+      const digestSummary = await summarizeHeadlinesDigest(headlines);
+      output.digest = digestSummary.digest;
+    }
   }
   
   // Ensure we always return a valid NewsAgentOutput object, even if the model fails.
