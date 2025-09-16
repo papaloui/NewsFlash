@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import { getSectionSummary } from './actions';
 
 interface InterventionContent {
   type: 'text' | 'timestamp' | 'language';
@@ -35,10 +36,13 @@ export default function HouseOfCommonsPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const { toast } = useToast();
+  const [summaries, setSummaries] = useState<Record<string, string>>({});
+  const [summarizingId, setSummarizingId] = useState<string | null>(null);
 
   const handleLoad = async () => {
     setIsLoading(true);
     setData(null);
+    setSummaries({});
     try {
       const res = await fetch(`/api/hansard?url=${encodeURIComponent(url)}`);
       if (!res.ok) {
@@ -78,12 +82,63 @@ export default function HouseOfCommonsPage() {
     }).join('\n\n');
   };
 
+  const handleSummarizeSection = async (intervention: Intervention) => {
+    const sectionId = intervention.id || 'summary';
+    if (!intervention.content) return;
+    
+    setSummarizingId(sectionId);
+    const sectionText = getTextFromContent(intervention.content);
+    
+    try {
+      const summary = await getSectionSummary(sectionText);
+      setSummaries(prev => ({...prev, [sectionId]: summary}));
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred.';
+      setSummaries(prev => ({...prev, [sectionId]: `Error: ${errorMessage}`}));
+    } finally {
+      setSummarizingId(null);
+    }
+  }
+
+
   const renderIntervention = (intervention: Intervention, idx: number) => {
-    // Only render items that are actual interventions with a speaker and content
+    const isSectionHeading = intervention.type === 'OrderOfBusiness' || intervention.type === 'SubjectOfBusiness';
+    const sectionId = intervention.id || `section-${idx}`;
+
+    if (isSectionHeading) {
+      const title = getTextFromContent(intervention.content);
+      return (
+        <Card key={sectionId} className="shadow-md bg-secondary/30">
+          <CardHeader>
+            <CardTitle className="text-xl font-bold flex items-center justify-between gap-2">
+              <span className="flex items-center gap-2">
+                <FileTextIcon className="h-5 w-5 text-primary" />
+                {title}
+              </span>
+              <Button 
+                size="sm" 
+                variant="outline" 
+                onClick={() => handleSummarizeSection(intervention)}
+                disabled={summarizingId === sectionId}
+              >
+                {summarizingId === sectionId ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Summarize Section'}
+              </Button>
+            </CardTitle>
+            <Badge variant="secondary" className="w-fit">{intervention.type}</Badge>
+          </CardHeader>
+          {summaries[sectionId] && (
+            <CardContent>
+              <p className="text-sm text-muted-foreground italic">{summaries[sectionId]}</p>
+            </CardContent>
+          )}
+        </Card>
+      );
+    }
+
     if (!intervention.speaker || intervention.content.length === 0) return null;
 
     return (
-      <Card key={intervention.id || idx} className="shadow-sm">
+      <Card key={intervention.id || idx} className="shadow-sm ml-4">
         <CardHeader className='pb-3'>
           <CardTitle className="text-lg font-semibold flex items-center gap-2">
             <User className="h-4 w-4 text-primary" />
