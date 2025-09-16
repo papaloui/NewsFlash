@@ -1,8 +1,9 @@
-import type { SummarizedArticle } from "@/lib/types";
+import type { RankedArticle } from "@/lib/types";
 import { ArticleCard } from "./article-card";
+import { SearchNewsAndRankOutput } from "@/ai/flows/search-news-and-rank";
 
 interface NewsBoardProps {
-  articles: SummarizedArticle[];
+  articles: SearchNewsAndRankOutput;
 }
 
 export function NewsBoard({ articles }: NewsBoardProps) {
@@ -10,7 +11,7 @@ export function NewsBoard({ articles }: NewsBoardProps) {
     return (
       <div className="text-center py-16 border-2 border-dashed rounded-lg">
         <h2 className="text-xl font-semibold text-muted-foreground">No news to display</h2>
-        <p className="text-muted-foreground mt-2">Select a collection and fetch the news to get started.</p>
+        <p className="text-muted-foreground mt-2">Select a topic to fetch the news.</p>
       </div>
     );
   }

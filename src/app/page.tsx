@@ -1,108 +1,58 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { processFeeds } from '@/app/actions';
+import { useState } from 'react';
+import { searchNewsAndRank } from '@/ai/flows/search-news-and-rank';
 import { Header } from '@/components/app/header';
-import { FeedManager } from '@/components/app/feed-manager';
 import { NewsBoard } from '@/components/app/news-board';
 import { NewsBoardSkeleton } from '@/components/app/skeletons';
-import type { FeedCollection, SummarizedArticle } from '@/lib/types';
+import type { SearchNewsAndRankOutput } from '@/lib/schemas';
 import { useToast } from "@/hooks/use-toast";
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { Label } from '@/components/ui/label';
+import { Separator } from '@/components/ui/separator';
 
-const defaultCollections: FeedCollection[] = [
-    {
-        id: "1",
-        name: "Global News",
-        feeds: ["http://rss.cnn.com/rss/cnn_topstories.rss", "https://feeds.bbci.co.uk/news/world/rss.xml"]
-    },
-    {
-        id: "2",
-        name: "Tech News",
-        feeds: ["https://techcrunch.com/feed/", "https://www.theverge.com/rss/index.xml", "https://www.wired.com/feed/rss"]
-    },
-    {
-        id: "3",
-        name: "Canadian News",
-        feeds: ["https://www.cbc.ca/webfeed/rss/rss-canada"]
-    }
+const newsTopics = [
+    { id: 'global', name: 'Global News' },
+    { id: 'tech', name: 'Tech News' },
+    { id: 'canada', name: 'Canadian News' },
 ];
 
 export default function Home() {
-  const [collections, setCollections] = useState<FeedCollection[]>([]);
-  const [selectedCollectionId, setSelectedCollectionId] = useState<string | null>(null);
-  const [articles, setArticles] = useState<SummarizedArticle[]>([]);
+  const [articles, setArticles] = useState<SearchNewsAndRankOutput>([]);
   const [isFetching, setIsFetching] = useState(false);
+  const [selectedTopic, setSelectedTopic] = useState<string | null>(null);
   const { toast } = useToast();
 
-  useEffect(() => {
-    try {
-      const storedCollections = localStorage.getItem('newsflash-collections');
-      if (storedCollections) {
-        const parsedCollections = JSON.parse(storedCollections);
-        setCollections(parsedCollections);
-        if (parsedCollections.length > 0) {
-            setSelectedCollectionId(parsedCollections[0].id);
-        }
-      } else {
-        setCollections(defaultCollections);
-        localStorage.setItem('newsflash-collections', JSON.stringify(defaultCollections));
-        setSelectedCollectionId(defaultCollections[0].id);
-      }
-    } catch (error) {
-        console.error("Failed to parse collections from localStorage", error);
-        setCollections(defaultCollections);
-        setSelectedCollectionId(defaultCollections[0].id);
-    }
-  }, []);
-
-  useEffect(() => {
-    try {
-        if (collections.length > 0) {
-            localStorage.setItem('newsflash-collections', JSON.stringify(collections));
-        }
-    } catch (error) {
-        console.error("Failed to save collections to localStorage", error);
-    }
-  }, [collections]);
-
-  const handleFetchNews = async () => {
-    if (!selectedCollectionId) {
-        toast({
-            variant: "destructive",
-            title: "No Collection Selected",
-            description: "Please select a collection to fetch news from.",
-        });
-        return;
-    }
-
-    const selectedCollection = collections.find(c => c.id === selectedCollectionId);
-    if (!selectedCollection || selectedCollection.feeds.length === 0) {
-        toast({
-            variant: "destructive",
-            title: "No Feeds in Collection",
-            description: "The selected collection has no RSS feeds.",
-        });
-        return;
-    }
-    
+  const handleFetchNews = async (topicName: string, topicId: string) => {
+    setSelectedTopic(topicId);
     setIsFetching(true);
     setArticles([]);
 
     try {
-      const results = await processFeeds(selectedCollection.feeds);
-      setArticles(results);
-       if (results.length === 0) {
-         toast({
-            title: "No Articles Found",
-            description: "Could not find any articles to display. The feeds might be empty or incompatible.",
-         });
-       }
+      const results = await searchNewsAndRank({ query: topicName });
+      // Sort by relevance before displaying
+      const sortedResults = results.sort((a, b) => b.relevanceScore - a.relevanceScore);
+      setArticles(sortedResults);
+
+      if (results.length === 0) {
+        toast({
+          title: "No Articles Found",
+          description: `Couldn't find any articles for "${topicName}".`,
+        });
+      }
     } catch (error) {
       console.error(error);
+      const errorMessage = error instanceof Error ? error.message : "An unknown error occurred.";
+      // Extract user-friendly message if possible
+      const userFriendlyMessage = errorMessage.includes('rate limit')
+        ? 'Too many requests. Please wait a moment before trying again.'
+        : errorMessage;
+      
       toast({
         variant: "destructive",
         title: "Error Fetching News",
-        description: error instanceof Error ? error.message : "An unknown error occurred.",
+        description: userFriendlyMessage,
       });
     } finally {
       setIsFetching(false);
@@ -113,14 +63,26 @@ export default function Home() {
     <div className="min-h-screen bg-background">
       <Header />
       <main className="container mx-auto p-4 md:p-6 space-y-6">
-        <FeedManager 
-            collections={collections}
-            setCollections={setCollections}
-            selectedCollectionId={selectedCollectionId}
-            setSelectedCollectionId={setSelectedCollectionId}
-            onFetch={handleFetchNews}
-            isFetching={isFetching}
-        />
+        <Card className="border shadow-sm">
+            <CardContent className="p-4">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+                    <Label className="text-sm font-medium text-muted-foreground shrink-0">News Topics</Label>
+                    <Separator orientation='vertical' className="h-6 hidden sm:block"/>
+                    <div className="flex flex-wrap items-center gap-2">
+                        {newsTopics.map((topic) => (
+                        <Button
+                            key={topic.id}
+                            variant={selectedTopic === topic.id ? 'default' : 'outline'}
+                            onClick={() => handleFetchNews(topic.name, topic.id)}
+                            disabled={isFetching}
+                        >
+                            {isFetching && selectedTopic === topic.id ? 'Fetching...' : topic.name}
+                        </Button>
+                        ))}
+                    </div>
+                </div>
+            </CardContent>
+        </Card>
         
         <div className="transition-opacity duration-300">
             {isFetching ? <NewsBoardSkeleton /> : <NewsBoard articles={articles} />}

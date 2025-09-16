@@ -13,9 +13,3 @@ export interface RankedArticle extends Article {
 export interface SummarizedArticle extends RankedArticle {
   fullSummary: string;
 }
-
-export interface FeedCollection {
-  id: string;
-  name: string;
-  feeds: string[];
-}
