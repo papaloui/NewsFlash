@@ -4,63 +4,67 @@ import { XMLParser } from "fast-xml-parser";
 // Helper to reliably get text from a node, however it's structured.
 function getTextFromNode(node: any): string {
     if (node == null) return '';
+    // If the node is just a string, return it.
     if (typeof node === 'string') return node.trim();
-    if (Array.isArray(node)) return node.map(getTextFromNode).join(' ').trim();
+    // If it's an array, process each item.
+    if (Array.isArray(node)) return node.map(getTextFromNode).join('\n\n').trim();
     
+    // If it's an object, it might have a '#text' property for its content.
+    if (typeof node === 'object' && node['#text']) {
+        return String(node['#text']).trim();
+    }
+
+    // Fallback for more complex nested tags within a paragraph.
     let text = '';
     if (typeof node === 'object') {
         for (const key of Object.keys(node)) {
-            if (key === '#text') {
-                text += ' ' + node[key];
-            } else if (key.toLowerCase() === 'p' || key.toLowerCase() === 'para') {
-                text += ' ' + getTextFromNode(node[key]);
-            }
+            text += ' ' + getTextFromNode(node[key]);
         }
     }
-    return text.trim();
+    
+    return text.trim().replace(/\s+/g, ' ');
 }
 
 // Tolerant traversal function to find and extract speeches from the parsed XML object.
 function extractSpeechesFromParsedXML(obj: any): any[] {
     const speeches: any[] = [];
+    
+    try {
+        const hansard = obj.HansardDocument;
+        if (!hansard) return [];
 
-    function findInterventions(currentObj: any) {
-        if (!currentObj || typeof currentObj !== 'object') return;
+        const debateSections = Array.isArray(hansard.debateSection) ? hansard.debateSection : [hansard.debateSection].filter(Boolean);
 
-        // "Intervention" seems to be the most common tag for a speech block.
-        const key = 'Intervention';
-        if (key in currentObj) {
-            const interventions = Array.isArray(currentObj[key]) ? currentObj[key] : [currentObj[key]];
+        for (const ds of debateSections) {
+            const debates = Array.isArray(ds.debate) ? ds.debate : [ds.debate].filter(Boolean);
             
-            for (const item of interventions) {
-                let speaker = 'Unknown Speaker';
-                // The speaker's name can be in various tags or attributes.
-                const personSpeakingNode = item.PersonSpeaking || item.persontitle || item.PersonTitle;
-                if (personSpeakingNode && typeof personSpeakingNode === 'object' && personSpeakingNode['#text']) {
-                    speaker = personSpeakingNode['#text'].replace(/:$/, '').trim();
-                } else if (typeof personSpeakingNode === 'string') {
-                    speaker = personSpeakingNode.replace(/:$/, '').trim();
-                }
-
-                // The actual content is usually within <p> tags inside the intervention.
-                const content = getTextFromNode(item.Content);
+            for (const debate of debates) {
+                if (!debate.speech) continue;
+                const speechList = Array.isArray(debate.speech) ? debate.speech : [debate.speech];
                 
-                if (content) {
-                    speeches.push({
-                        speaker,
-                        text: content
-                    });
+                for (const s of speechList) {
+                    const speakerNode = s.speaker;
+                    const speaker = speakerNode?.name || 'Unknown Speaker';
+                    const timestamp = s["@_time"] || null;
+                    
+                    let text = '';
+                    if (s.p) {
+                        const paragraphs = Array.isArray(s.p) ? s.p : [s.p];
+                        text = paragraphs.map(getTextFromNode).filter(Boolean).join('\n\n');
+                    }
+
+                    if (text) {
+                        speeches.push({ speaker, timestamp, text });
+                    }
                 }
-            }
-        } else {
-            // If no "Intervention" found at this level, recurse deeper into the object.
-            for (const k of Object.keys(currentObj)) {
-                findInterventions(currentObj[k]);
             }
         }
+    } catch (e) {
+        console.error('Error traversing XML structure:', e);
+        // Return whatever was found, even if traversal failed partway through.
+        return speeches;
     }
 
-    findInterventions(obj);
     return speeches;
 }
 
@@ -86,6 +90,7 @@ export async function GET(req: NextRequest) {
 
     const parser = new XMLParser({
       ignoreAttributes: false,
+      attributeNamePrefix: '@_',
       textNodeName: "#text"
     });
     const parsedObj = parser.parse(xmlText);
@@ -93,7 +98,11 @@ export async function GET(req: NextRequest) {
     const speeches = extractSpeechesFromParsedXML(parsedObj);
 
     if (speeches.length === 0) {
-        return NextResponse.json({ error: 'Could not parse any speeches from the provided XML.' }, { status: 500 });
+        // Now returns the raw XML in the 'debug' field if parsing fails
+        return NextResponse.json({ 
+            error: 'Could not parse any speeches from the provided XML.',
+            debug: { rawXml: xmlText }
+        }, { status: 500 });
     }
 
     return NextResponse.json({ speeches });
