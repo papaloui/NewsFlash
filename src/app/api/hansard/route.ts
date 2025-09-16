@@ -11,7 +11,6 @@ interface Intervention {
   type: string | null;
   id: string | null;
   speaker?: string;
-  affiliation?: string;
   content: InterventionContent[];
 }
 
@@ -81,65 +80,85 @@ export async function GET(req: NextRequest) {
             return;
         }
 
-        for (const key in node) {
-            if (key === 'Intervention') {
-                const interventionItems = Array.isArray(node[key]) ? node[key] : [node[key]];
-                interventionItems.forEach((item: any) => {
-                     const intervention: Intervention = {
-                        type: item['@_Type'] || null,
-                        id: item['@_id'] || null,
-                        content: []
-                    };
+        if (node.Intervention) {
+            const interventionItems = Array.isArray(node.Intervention) ? node.Intervention : [node.Intervention];
+            interventionItems.forEach((item: any) => {
+                 const intervention: Intervention = {
+                    type: item['@_Type'] || 'Intervention',
+                    id: item['@_id'] || null,
+                    content: []
+                };
 
-                    // Extract speaker and affiliation
-                    if (item.PersonSpeaking) {
-                        const personNode = item.PersonSpeaking;
-                        // The speaker name is the text node within PersonSpeaking, excluding the Affiliation part.
-                        let fullText = personNode['#text'] || '';
-                        let affiliationText = personNode.Affiliation?.['#text'] || '';
-                        let speakerName = fullText.replace(affiliationText, '').replace(':', '').trim();
-                        intervention.speaker = speakerName;
-                    }
-                    
-                    // Extract content
-                    if (item.Content) {
-                        const contentKeys = Object.keys(item.Content);
-                        contentKeys.forEach(contentKey => {
-                            const contentItems = Array.isArray(item.Content[contentKey]) ? item.Content[contentKey] : [item.Content[contentKey]];
-                            contentItems.forEach((cItem: any) => {
-                                const text = cItem['#text'] || (typeof cItem === 'string' ? cItem : '');
-                                if (contentKey === 'ParaText' && text) {
-                                    intervention.content.push({ type: 'text', value: text });
-                                } else if (contentKey === 'FloorLanguage' && text) {
-                                    intervention.content.push({ type: 'language', value: text });
-                                } else if (contentKey === 'Timestamp' && text) {
-                                    intervention.content.push({ type: 'timestamp', value: text });
-                                }
-                            });
+                if (item.PersonSpeaking) {
+                    const personNode = item.PersonSpeaking;
+                    let fullText = personNode['#text'] || '';
+                    let affiliationText = personNode.Affiliation?.['#text'] || '';
+                    let speakerName = fullText.replace(affiliationText, '').replace(':', '').trim();
+                    intervention.speaker = speakerName;
+                }
+                
+                if (item.Content) {
+                    const contentKeys = Object.keys(item.Content);
+                    contentKeys.forEach(contentKey => {
+                        const contentItems = Array.isArray(item.Content[contentKey]) ? item.Content[contentKey] : [item.Content[contentKey]];
+                        contentItems.forEach((cItem: any) => {
+                            const text = cItem['#text'] || (typeof cItem === 'string' ? cItem : '');
+                            if (contentKey === 'ParaText' && text) {
+                                intervention.content.push({ type: 'text', value: text });
+                            } else if (contentKey === 'FloorLanguage' && text) {
+                                intervention.content.push({ type: 'language', value: text });
+                            } else if (contentKey === 'Timestamp' && text) {
+                                intervention.content.push({ type: 'timestamp', value: text });
+                            }
                         });
-                    }
-                    
-                    if(intervention.content.length > 0) {
-                        interventions.push(intervention);
-                    }
-                });
-            } else if (key === 'OrderOfBusiness' || key === 'SubjectOfBusiness') {
-                const businessItem = Array.isArray(node[key]) ? node[key][0] : node[key];
-                 if(businessItem) {
-                     const title = businessItem[`${key}Title`];
-                     const textContent = businessItem.Content?.ParaText?.['#text'] || businessItem.Content?.ParaText || '';
-                     if(title || textContent) {
-                        interventions.push({
-                            type: key,
-                            id: null,
-                            content: [
-                                {type: 'title', value: title},
-                                {type: 'text', value: textContent}
-                            ]
-                        });
-                     }
+                    });
+                }
+                
+                if(intervention.content.length > 0) {
+                    interventions.push(intervention);
+                }
+            });
+        } 
+        
+        if (node.OrderOfBusiness) {
+            const businessItem = Array.isArray(node.OrderOfBusiness) ? node.OrderOfBusiness[0] : node.OrderOfBusiness;
+             if(businessItem) {
+                 const title = businessItem['OrderOfBusinessTitle'];
+                 const textContent = businessItem.Content?.ParaText?.['#text'] || businessItem.Content?.ParaText || '';
+                 if(title || textContent) {
+                    interventions.push({
+                        type: 'OrderOfBusiness',
+                        id: null,
+                        content: [
+                            {type: 'title', value: title},
+                            {type: 'text', value: textContent}
+                        ]
+                    });
                  }
-            } else if (typeof node[key] === 'object') {
+             }
+        } 
+        
+        if (node.SubjectOfBusiness) {
+             const businessItem = Array.isArray(node.SubjectOfBusiness) ? node.SubjectOfBusiness[0] : node.SubjectOfBusiness;
+             if(businessItem) {
+                 const title = businessItem['SubjectOfBusinessTitle'];
+                 const textContent = businessItem.Content?.ParaText?.['#text'] || businessItem.Content?.ParaText || '';
+                 if(title || textContent) {
+                    interventions.push({
+                        type: 'SubjectOfBusiness',
+                        id: null,
+                        content: [
+                            {type: 'title', value: title},
+                            {type: 'text', value: textContent}
+                        ]
+                    });
+                 }
+             }
+        }
+        
+        // Always recurse deeper
+        for (const key in node) {
+            if (typeof node[key] === 'object') {
                 findInterventions(node[key]);
             }
         }

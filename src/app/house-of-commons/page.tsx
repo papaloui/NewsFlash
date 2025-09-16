@@ -70,7 +70,7 @@ export default function HouseOfCommonsPage() {
   };
   
   const fullTranscript = data?.interventions.map(i => {
-    const speaker = i.speaker || i.type || 'Unknown Speaker';
+    const speaker = i.speaker || i.content.find(c => c.type === 'title')?.value || i.type || 'Unnamed Section';
     const text = getTextFromContent(i.content);
     return `${speaker}:\n${text}`;
   }).join('\n\n') || '';
@@ -94,14 +94,17 @@ export default function HouseOfCommonsPage() {
       )
     }
 
+    // Only render items that are actual interventions with a speaker
+    if (!intervention.speaker) return null;
+
     return (
         <Card key={intervention.id || idx} className="shadow-sm">
         <CardHeader className='pb-3'>
           <CardTitle className="text-base font-semibold flex items-center gap-2">
             <User className="h-4 w-4 text-primary" />
-            {intervention.speaker || 'Unknown Speaker'}
+            {intervention.speaker}
           </CardTitle>
-          {intervention.type && <Badge variant="secondary" className="w-fit mt-1">{intervention.type}</Badge>}
+          {intervention.type && intervention.type !== 'Intervention' && <Badge variant="secondary" className="w-fit mt-1">{intervention.type}</Badge>}
         </CardHeader>
         <CardContent>
           <div className="space-y-3">
@@ -201,11 +204,13 @@ export default function HouseOfCommonsPage() {
                 />
             </div>
             
-            {filteredInterventions.length > 0 ? filteredInterventions.map(renderIntervention) : (
-                <div className="text-center py-10">
-                    <p className="text-muted-foreground">No interventions match your search query.</p>
-                </div>
-            )}
+            <div className="space-y-4">
+                {filteredInterventions.length > 0 ? filteredInterventions.map(renderIntervention) : (
+                    <div className="text-center py-10">
+                        <p className="text-muted-foreground">No interventions match your search query.</p>
+                    </div>
+                )}
+            </div>
           </div>
         )}
       </main>
