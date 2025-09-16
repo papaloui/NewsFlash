@@ -14,11 +14,26 @@ import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { DailyDigest } from '@/components/app/daily-digest';
 import { getArticleSummary } from './actions';
+import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 
 const newsTopics = [
-    { id: 'global', name: 'Global News' },
-    { id: 'tech', name: 'Tech News' },
-    { id: 'canada', name: 'Canadian News' },
+    { id: 'global-news', name: 'Global News' },
+    { id: 'local-news', name: 'Local News' },
+    { id: 'business-and-finance', name: 'Business and Finance' },
+    { id: 'science-and-technology', name: 'Science and Technology' },
+    { id: 'health-and-wellness', name: 'Health and Wellness' },
+    { id: 'travel', name: 'Travel' },
+    { id: 'fashion-and-beauty', name: 'Fashion and Beauty' },
+    { id: 'culinary', name: 'Culinary' },
+    { id: 'relationships-and-family', name: 'Relationships and Family' },
+    { id: 'music', name: 'Music' },
+    { id: 'celebrity-and-pop-culture', name: 'Celebrity and Pop Culture' },
+    { id: 'movies-and-tv', name: 'Movies and TV' },
+    { id: 'literature', name: 'Literature' },
+    { id: 'events-and-festivals', name: 'Events and Festivals' },
+    { id: 'environment-and-sustainability', name: 'Environment and Sustainability' },
+    { id: 'artificial-intelligence', name: 'Artificial Intelligence' },
+    { id: 'trending', name: 'Trending' },
 ];
 
 export type ArticleWithSummary = SearchNewsAndRankOutput[0] & { fullSummary?: string; isSummarizing?: boolean };
@@ -95,18 +110,22 @@ export default function Home() {
                 <div className="flex flex-col sm:flex-row sm:items-center gap-4">
                     <Label className="text-sm font-medium text-muted-foreground shrink-0">News Topics</Label>
                     <Separator orientation='vertical' className="h-6 hidden sm:block"/>
-                    <div className="flex flex-wrap items-center gap-2">
-                        {newsTopics.map((topic) => (
-                        <Button
-                            key={topic.id}
-                            variant={selectedTopic === topic.id ? 'default' : 'outline'}
-                            onClick={() => handleFetchNews(topic.name, topic.id)}
-                            disabled={isFetching}
-                        >
-                            {isFetching && selectedTopic === topic.id ? 'Fetching...' : topic.name}
-                        </Button>
-                        ))}
-                    </div>
+                    <ScrollArea className="w-full whitespace-nowrap">
+                        <div className="flex w-max space-x-2">
+                            {newsTopics.map((topic) => (
+                            <Button
+                                key={topic.id}
+                                variant={selectedTopic === topic.id ? 'default' : 'outline'}
+                                onClick={() => handleFetchNews(topic.name, topic.id)}
+                                disabled={isFetching}
+                                className="shrink-0"
+                            >
+                                {isFetching && selectedTopic === topic.id ? 'Fetching...' : topic.name}
+                            </Button>
+                            ))}
+                        </div>
+                        <ScrollBar orientation="horizontal" />
+                    </ScrollArea>
                 </div>
             </CardContent>
         </Card>
