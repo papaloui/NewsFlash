@@ -4,6 +4,7 @@ import { rankArticles } from '@/ai/flows/rank-articles-by-relevance';
 import { summarizeArticle } from '@/ai/flows/summarize-article';
 import { summarizeHeadline } from '@/ai/flows/summarize-headline';
 import type { SummarizedArticle, Article, RankedArticle } from '@/lib/types';
+import { format } from 'date-fns';
 
 // A very basic XML parser to extract items from an RSS feed.
 // This is fragile and only works for simple, standard RSS structures.
@@ -23,7 +24,7 @@ function parseRss(rssText: string, source: string): Article[] {
 
     const headline = titleMatch ? (titleMatch[1] || titleMatch[2] || '').trim() : 'No title';
     const link = linkMatch ? linkMatch[1].trim() : '';
-    const publicationDate = pubDateMatch ? new Date(pubDateMatch[1].trim()).toLocaleDateString() : 'No date';
+    const publicationDate = pubDateMatch ? format(new Date(pubDateMatch[1].trim()), 'yyyy-MM-dd') : 'No date';
     const articleSource = sourceMatch ? (sourceMatch[1] || sourceMatch[2] || '').trim() : source;
     // Attempt to get a summary, remove HTML tags. Fallback to headline.
     const summary = descriptionMatch ? (descriptionMatch[1] || descriptionMatch[2] || '').replace(/<[^>]+>/g, '').trim() : headline;
@@ -75,11 +76,11 @@ function extractArticleContent(html: string): string {
 
     // Extract content from <p> tags within the main content
     const pTagRegex = /<p[^>]*>(.*?)<\/p>/g;
-    let match;
+    let pMatch;
     const paragraphs: string[] = [];
-    while ((match = pTagRegex.exec(mainContentHtml)) !== null) {
+    while ((pMatch = pTagRegex.exec(mainContentHtml)) !== null) {
         // Strip inner tags from paragraph and trim whitespace
-        const paragraphText = match[1].replace(/<[^>]+>/g, '').trim();
+        const paragraphText = pMatch[1].replace(/<[^>]+>/g, '').trim();
         // Only include paragraphs with meaningful content
         if (paragraphText.length > 20 && paragraphText.includes(' ')) {
             paragraphs.push(paragraphText);
