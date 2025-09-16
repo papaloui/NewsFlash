@@ -69,20 +69,22 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-background">
       <Header />
-      <main className="container mx-auto p-4 md:p-6 space-y-6">
+      <main className="container mx-auto p-4 md:p-6 grid gap-6">
+        <div className="space-y-6">
+          {isFetching && <NewsBoardSkeleton />}
+          
+          {!isFetching && digest && <DailyDigest digest={digest} />}
+          
+          <div className="transition-opacity duration-300">
+              {!isFetching && <NewsBoard articles={articles} onSummarize={handleSummarizeArticle} />}
+          </div>
+        </div>
+        
         <ChatInterface 
           setArticles={setArticles}
           setIsFetching={setIsFetching}
           setDigest={setDigest}
         />
-
-        {isFetching && <NewsBoardSkeleton />}
-        
-        {!isFetching && digest && <DailyDigest digest={digest} />}
-        
-        <div className="transition-opacity duration-300">
-            {!isFetching && <NewsBoard articles={articles} onSummarize={handleSummarizeArticle} />}
-        </div>
       </main>
     </div>
   );

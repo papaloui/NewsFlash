@@ -48,6 +48,7 @@ export function ChatInterface({ setArticles, setIsFetching, setDigest }: ChatInt
                     title: 'AI Response',
                     description: result.response,
                 });
+                setArticles([]); // Also clear articles when there's a direct text response.
             }
 
         } catch (error) {
@@ -66,7 +67,7 @@ export function ChatInterface({ setArticles, setIsFetching, setDigest }: ChatInt
     };
 
     return (
-        <Card>
+        <Card className="sticky bottom-4">
             <CardContent className="p-4">
                 <div className="flex gap-2">
                     <Input

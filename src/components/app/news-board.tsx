@@ -1,5 +1,5 @@
-import { ArticleCard } from "./article-card";
-import { ArticleWithSummary } from "@/app/page";
+import { ArticleListItem } from "./article-list-item";
+import type { ArticleWithSummary } from "@/lib/schemas";
 
 interface NewsBoardProps {
   articles: ArticleWithSummary[];
@@ -11,15 +11,15 @@ export function NewsBoard({ articles, onSummarize }: NewsBoardProps) {
     return (
       <div className="text-center py-16 border-2 border-dashed rounded-lg">
         <h2 className="text-xl font-semibold text-muted-foreground">No news to display</h2>
-        <p className="text-muted-foreground mt-2">Select a topic to fetch the news.</p>
+        <p className="text-muted-foreground mt-2">Use the chat below to search for news.</p>
       </div>
     );
   }
 
   return (
-    <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+    <div className="space-y-4">
       {articles.map((article) => (
-        <ArticleCard key={article.link} article={article} onSummarize={onSummarize} />
+        <ArticleListItem key={article.link} article={article} onSummarize={onSummarize} />
       ))}
     </div>
   );

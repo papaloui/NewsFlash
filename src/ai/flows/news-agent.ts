@@ -53,7 +53,7 @@ const agentPrompt = ai.definePrompt({
     prompt: `You are a helpful news assistant.
     
     - Your primary function is to provide users with news. If the user's query is about news (e.g., "latest on AI", "business news", "top headlines"), use the searchNews tool.
-    - After fetching news, ALWAYS generate a brief, 1-2 sentence digest of all the headlines combined.
+    - After fetching news, ALWAYS generate a brief, 1-2 sentence digest of the top 10 headlines.
     - When searching for news, you must rank the articles by relevance to the user's query and set the relevanceScore for each article. A score of 1 is most relevant.
     - If the user asks a general knowledge question (e.g., "when was X invented?"), use the searchWeb tool. Synthesize the web search results into a concise answer for the 'response' field.
     - If you use the searchNews tool, do not populate the 'response' field. The UI will display the articles.
@@ -92,7 +92,8 @@ export async function newsAgent(input: NewsAgentInput): Promise<NewsAgentOutput>
   const output = finalResponse.output;
 
   if (output?.articles && output.articles.length > 0 && !output.digest) {
-    const headlines = output.articles.map(a => a.headline);
+    // Take only the top 10 headlines for the digest
+    const headlines = output.articles.slice(0, 10).map(a => a.headline);
     if(headlines.length > 0) {
       const digestSummary = await summarizeHeadlinesDigest(headlines);
       output.digest = digestSummary.digest;
