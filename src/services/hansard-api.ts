@@ -15,14 +15,12 @@ interface DebateApiResponse {
 
 
 /**
- * Fetches the transcript content for yesterday's House of Commons debate from the OpenParliament API.
+ * Fetches the transcript content for a specific date's House of Commons debate from the OpenParliament API.
  * @returns An object containing the transcript, the source URL, and the raw API response for debugging.
  */
 export async function getHansardContent(): Promise<{transcript: string; url: string; rawResponse: string;}> {
     
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
-    const dateString = yesterday.toISOString().split('T')[0]; // Format as YYYY-MM-DD
+    const dateString = '2025-09-15'; // Use the date requested by the user
 
     const apiUrl = `https://openparliament.ca/debates.json?date=${dateString}`;
     console.log(`Fetching Hansard from OpenParliament API: ${apiUrl}`);
