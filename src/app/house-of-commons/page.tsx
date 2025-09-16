@@ -34,6 +34,7 @@ interface HansardData {
 interface FullSummary {
   summary: string;
   topics: string[];
+  billsReferenced: string[];
 }
 
 
@@ -286,16 +287,24 @@ export default function HouseOfCommonsPage() {
                     <CardTitle>Full Debate Summary</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                    <div>
-                      <h3 className="font-semibold mb-2">Topics Discussed</h3>
+                    <div className='space-y-3'>
+                      <h3 className="font-semibold">Topics Discussed</h3>
                       <div className="flex flex-wrap gap-2">
                         {fullSummary.topics.map((topic, index) => (
                           <Badge key={index} variant="secondary">{topic}</Badge>
                         ))}
                       </div>
                     </div>
+                     <div className='space-y-3'>
+                      <h3 className="font-semibold">Bills Referenced</h3>
+                      <div className="flex flex-wrap gap-2">
+                        {fullSummary.billsReferenced?.map((bill, index) => (
+                          <Badge key={index} variant="outline">{bill}</Badge>
+                        ))}
+                      </div>
+                    </div>
                     <div>
-                      <h3 className="font-semibold mb-2">Summary</h3>
+                      <h3 className="font-semibold mt-4 mb-2">Summary</h3>
                       <p className="whitespace-pre-wrap font-body text-sm leading-relaxed">{fullSummary.summary}</p>
                     </div>
                 </CardContent>
