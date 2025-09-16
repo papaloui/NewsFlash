@@ -6,3 +6,4 @@ import '@/ai/flows/summarize-article.ts';
 import '@/ai/flows/summarize-headline.ts';
 import '@/ai/flows/search-news-and-rank.ts';
 import '@/ai/flows/summarize-headlines-digest.ts';
+import '@/ai/flows/news-agent.ts';

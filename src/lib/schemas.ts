@@ -16,3 +16,25 @@ export const SearchNewsAndRankOutputSchema = z.array(
   })
 ).describe('An array of ranked articles with relevance scores.');
 export type SearchNewsAndRankOutput = z.infer<typeof SearchNewsAndRankOutputSchema>;
+
+
+export const NewsAgentInputSchema = z.object({
+  query: z.string().describe('The user\'s request or question.'),
+});
+export type NewsAgentInput = z.infer<typeof NewsAgentInputSchema>;
+
+export const NewsAgentOutputSchema = z.object({
+    response: z.string().describe('A direct textual response to the user if no articles or web results are relevant.'),
+    articles: z.array(
+        z.object({
+            headline: z.string(),
+            summary: z.string(),
+            link: z.string().url(),
+            source: z.string(),
+            publicationDate: z.string(),
+            relevanceScore: z.number(),
+        })
+    ).optional().describe('A list of ranked news articles, if the user asked for news.'),
+    digest: z.string().optional().describe('A summary of all the headlines, if news articles were fetched.'),
+});
+export type NewsAgentOutput = z.infer<typeof NewsAgentOutputSchema>;
