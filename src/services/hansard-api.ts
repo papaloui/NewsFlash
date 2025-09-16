@@ -32,17 +32,31 @@ export async function getHansardContent(): Promise<string> {
         const dom = new JSDOM(html);
         const document = dom.window.document;
 
-        // The main content is typically within an element with this ID.
         const contentElement = document.querySelector('#documentContent');
 
         if (!contentElement) {
             throw new Error('Could not find the main content element (#documentContent) in the Hansard page.');
         }
 
-        // We can improve this by chunking based on speakers or sections later.
-        const text = contentElement.textContent || '';
+        // The debate content is in cards with the class 'paratext'.
+        // We select all of them and join their text content.
+        const paraTextElements = contentElement.querySelectorAll('.paratext');
+        if (!paraTextElements || paraTextElements.length === 0) {
+            throw new Error("Could not find any 'paratext' elements within #documentContent. The page structure may have changed.");
+        }
         
-        return text.replace(/\s\s+/g, ' ').trim();
+        const transcriptParts: string[] = [];
+        paraTextElements.forEach(el => {
+            // Get text and clean up whitespace
+            const text = el.textContent?.replace(/\s\s+/g, ' ').trim();
+            if (text) {
+                transcriptParts.push(text);
+            }
+        });
+
+        const fullTranscript = transcriptParts.join('\n\n');
+
+        return fullTranscript;
 
     } catch (error) {
         console.error('Error fetching or parsing Hansard content:', error);
