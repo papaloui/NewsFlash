@@ -1,51 +1,22 @@
-// Extracts text content from HTML, focusing on the main content area.
-export function extractArticleContent(html: string): string {
-    // Remove scripts, styles, and head for cleaner processing
-    let cleanHtml = html.replace(/<script[^>]*>([\S\s]*?)<\/script>/gmi, '');
-    cleanHtml = cleanHtml.replace(/<style[^>]*>([\S\s]*?)<\/style>/gmi, '');
-    cleanHtml = cleanHtml.replace(/<head[^>]*>([\S\s]*?)<\/head>/gmi, '');
+import { JSDOM } from 'jsdom';
+import { Readability } from '@mozilla/readability';
 
-    // Try to find a main content container
-    let mainContentHtml = '';
-    const mainPatterns = [
-        /<main[^>]*>([\s\S]*?)<\/main>/i,
-        /<article[^>]*>([\s\S]*?)<\/article>/i,
-        /<div id="content"[^>]*>([\s\S]*?)<\/div>/i,
-        /<div class="post-content"[^>]*>([\s\S]*?)<\/div>/i,
-        /<div class="entry-content"[^>]*>([\s\S]*?)<\/div>/i,
-    ];
+// Extracts text content from HTML using Mozilla's Readability library.
+export function extractArticleContent(html: string, url?: string): string {
+    const doc = new JSDOM(html, { url });
+    const reader = new Readability(doc.window.document);
+    const article = reader.parse();
 
-    for (const pattern of mainPatterns) {
-        const match = cleanHtml.match(pattern);
-        if (match && match[1]) {
-            mainContentHtml = match[1];
-            break;
-        }
+    // 'article' can be null if Readability fails to parse the document
+    if (article && article.textContent) {
+        // The textContent property contains the extracted article text
+        return article.textContent.trim();
     }
-
-    // If no main container is found, use the whole body content as a fallback
-    if (!mainContentHtml) {
-        const bodyMatch = cleanHtml.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
-        mainContentHtml = bodyMatch ? bodyMatch[1] : cleanHtml;
-    }
-
-    // Extract content from <p> tags within the main content
-    const pTagRegex = /<p[^>]*>(.*?)<\/p>/g;
-    let pMatch;
-    const paragraphs: string[] = [];
-    while ((pMatch = pTagRegex.exec(mainContentHtml)) !== null) {
-        // Strip inner tags from paragraph and trim whitespace
-        const paragraphText = pMatch[1].replace(/<[^>]+>/g, '').trim();
-        // Only include paragraphs with meaningful content
-        if (paragraphText.length > 20 && paragraphText.includes(' ')) {
-            paragraphs.push(paragraphText);
-        }
-    }
-
-    if (paragraphs.length > 0) {
-        return paragraphs.join('\n\n');
-    }
-
-    // Fallback: strip all tags from the main content if no suitable <p> tags found
-    return mainContentHtml.replace(/<[^>]+>/g, ' ').replace(/\s\s+/g, ' ').trim();
+    
+    // Fallback: if Readability fails, strip all tags from the body as a last resort.
+    // This is less accurate but better than returning nothing.
+    const bodyMatch = html.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
+    const fallbackHtml = bodyMatch ? bodyMatch[1] : html;
+    
+    return fallbackHtml.replace(/<[^>]+>/g, ' ').replace(/\s\s+/g, ' ').trim();
 }
