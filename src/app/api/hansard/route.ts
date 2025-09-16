@@ -32,7 +32,12 @@ export async function GET(req: NextRequest) {
           : s.speaker?.["#text"] || null;
       const timestamp = s["@_time"] || null;
 
-      const paras = Array.isArray(s.p) ? s.p : s.p ? [s.p] : [];
+      // Handle ParaText instead of <p>
+      const paras = Array.isArray(s.ParaText)
+        ? s.ParaText
+        : s.ParaText
+        ? [s.ParaText]
+        : [];
       const text = paras
         .map((p: any) =>
           typeof p === "string" ? p.trim() : p?.["#text"]?.trim() || ""
@@ -48,13 +53,11 @@ export async function GET(req: NextRequest) {
     function walk(node: any) {
       if (!node || typeof node !== "object") return;
 
-      // If this node has a <speech>
       if (node.speech) {
         const list = Array.isArray(node.speech) ? node.speech : [node.speech];
         list.forEach(extractFromSpeechNode);
       }
 
-      // Recurse into children
       for (const key of Object.keys(node)) {
         const child = node[key];
         if (typeof child === "object") {
