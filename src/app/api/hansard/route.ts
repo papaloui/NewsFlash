@@ -61,7 +61,9 @@ export async function GET(req: NextRequest) {
             }
         });
     }
-    meta.documentTitle = hansardDoc.DocumentTitle?.['#text'] || hansardDoc.DocumentTitle;
+    meta.documentTitle = (typeof hansardDoc.DocumentTitle === 'object' && hansardDoc.DocumentTitle !== null) 
+      ? hansardDoc.DocumentTitle['#text'] 
+      : hansardDoc.DocumentTitle;
 
 
     // 2. Extract Interventions
