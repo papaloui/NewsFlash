@@ -20,9 +20,12 @@ interface DebateApiResponse {
  */
 export async function getHansardContent(): Promise<{transcript: string; url: string; rawResponse: string;}> {
     
-    const dateString = '2025-09-15'; // Use the date requested by the user
+    const date = new Date('2025-09-15T12:00:00Z'); // Use the date requested by the user, ensuring it's parsed correctly
+    const year = date.getFullYear();
+    const month = date.getMonth() + 1;
+    const day = date.getDate();
 
-    const apiUrl = `https://openparliament.ca/debates.json?date=${dateString}`;
+    const apiUrl = `https://openparliament.ca/debates/${year}/${month}/${day}.json`;
     console.log(`Fetching Hansard from OpenParliament API: ${apiUrl}`);
 
     let rawResponse = '';
@@ -44,7 +47,7 @@ export async function getHansardContent(): Promise<{transcript: string; url: str
 
         if (!data.objects || data.objects.length === 0) {
             return {
-                transcript: `No debates found on OpenParliament.ca for ${dateString}. This could be because the House was not in session.`,
+                transcript: `No debates found on OpenParliament.ca for ${year}-${month}-${day}. This could be because the House was not in session.`,
                 url: apiUrl,
                 rawResponse
             };
