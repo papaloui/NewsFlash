@@ -1,6 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import { XMLParser } from "fast-xml-parser";
 
+interface Intervention {
+  type: string | null;
+  id: string | null;
+  speaker?: string;
+  affiliation?: string;
+  content: { type: string; value: string; }[];
+}
+
+interface HansardData {
+  meta: { [key: string]: string | undefined };
+  interventions: Intervention[];
+}
+
+
 export async function GET(req: NextRequest) {
   const url =
     req.nextUrl.searchParams.get("url") ||
@@ -19,58 +33,81 @@ export async function GET(req: NextRequest) {
     const parser = new XMLParser({
       ignoreAttributes: false,
       attributeNamePrefix: "@_",
+      parseTagValue: true,
+      parseAttributeValue: true,
+      trimValues: true,
+      textNodeName: "#text"
     });
     const obj = parser.parse(xml);
 
-    const speeches: any[] = [];
+    const hansardDoc = obj.Hansard;
 
-    function extractFromSpeechNode(s: any) {
-      if (!s) return;
-      const speaker =
-        typeof s.speaker === "string"
-          ? s.speaker
-          : s.speaker?.["#text"] || null;
-      const timestamp = s["@_time"] || null;
+    // 1. Extract Document Info
+    const meta: { [key: string]: any } = {};
+    if (hansardDoc.ExtractedInformation?.ExtractedItem) {
+        const items = Array.isArray(hansardDoc.ExtractedInformation.ExtractedItem) 
+            ? hansardDoc.ExtractedInformation.ExtractedItem 
+            : [hansardDoc.ExtractedInformation.ExtractedItem];
 
-      // Handle ParaText instead of <p>
-      const paras = Array.isArray(s.ParaText)
-        ? s.ParaText
-        : s.ParaText
-        ? [s.ParaText]
+        items.forEach((item: any) => {
+            if(item['@_Name'] && item['#text']) {
+                const key = item['@_Name'].replace(/\s/g, '');
+                meta[key] = item['#text'];
+            }
+        });
+    }
+    meta.documentTitle = hansardDoc.DocumentTitle;
+
+
+    // 2. Extract Interventions
+    const interventions: Intervention[] = [];
+    const interventionNodes = hansardDoc.HansardBody?.Intervention 
+        ? (Array.isArray(hansardDoc.HansardBody.Intervention) ? hansardDoc.HansardBody.Intervention : [hansardDoc.HansardBody.Intervention])
         : [];
-      const text = paras
-        .map((p: any) =>
-          typeof p === "string" ? p.trim() : p?.["#text"]?.trim() || ""
-        )
-        .filter(Boolean)
-        .join("\n\n");
 
-      if (text) {
-        speeches.push({ speaker, timestamp, text });
-      }
-    }
+    interventionNodes.forEach((node: any) => {
+        const intervention: Intervention = {
+            type: node['@_Type'] || null,
+            id: node['@_id'] || null,
+            content: []
+        };
 
-    function walk(node: any) {
-      if (!node || typeof node !== "object") return;
-
-      if (node.speech) {
-        const list = Array.isArray(node.speech) ? node.speech : [node.speech];
-        list.forEach(extractFromSpeechNode);
-      }
-
-      for (const key of Object.keys(node)) {
-        const child = node[key];
-        if (typeof child === "object") {
-          if (Array.isArray(child)) child.forEach((c) => walk(c));
-          else walk(child);
+        // Extract speaker and affiliation
+        if (node.PersonSpeaking) {
+            const personNode = node.PersonSpeaking;
+            intervention.speaker = personNode['#text']?.replace(':', '').trim();
+            if (personNode.Affiliation) {
+                intervention.affiliation = personNode.Affiliation['#text'];
+            }
         }
-      }
-    }
+        
+        // Extract content
+        if (node.Content) {
+            const contentKeys = Object.keys(node.Content);
+            contentKeys.forEach(key => {
+                const contentItems = Array.isArray(node.Content[key]) ? node.Content[key] : [node.Content[key]];
+                contentItems.forEach((item: any) => {
+                    const text = item['#text'] || (typeof item === 'string' ? item : '');
+                    if (key === 'ParaText') {
+                        intervention.content.push({ type: 'text', value: text });
+                    } else if (key === 'FloorLanguage') {
+                        intervention.content.push({ type: 'language', value: text });
+                    } else if (key === 'Timestamp') {
+                        intervention.content.push({ type: 'timestamp', value: text });
+                    }
+                });
+            });
+        }
+        
+        interventions.push(intervention);
+    });
 
-    walk(obj);
+    const responseData: HansardData = { meta, interventions };
 
-    return NextResponse.json({ speeches });
+    return NextResponse.json(responseData);
+
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    console.error("Error parsing Hansard XML:", err);
+    return NextResponse.json({ error: err.message, stack: err.stack }, { status: 500 });
   }
 }

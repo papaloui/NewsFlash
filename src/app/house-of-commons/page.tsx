@@ -3,39 +3,41 @@
 import { useState } from 'react';
 import { Header } from '@/components/app/header';
 import { useToast } from '@/hooks/use-toast';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Landmark, Loader2, Search, BookText } from 'lucide-react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
+import { Landmark, Loader2, Search, BookOpen, Clock, Languages, User, Building } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible"
+import { Badge } from '@/components/ui/badge';
 
+interface InterventionContent {
+  type: 'text' | 'timestamp' | 'language';
+  value: string;
+}
 
-interface Speech {
-    speaker?: string;
-    timestamp?: string;
-    text: string;
+interface Intervention {
+  type: string | null;
+  id: string | null;
+  speaker?: string;
+  affiliation?: string;
+  content: InterventionContent[];
 }
 
 interface HansardData {
-    speeches: Speech[];
+  meta: { [key: string]: string };
+  interventions: Intervention[];
 }
+
 
 export default function HouseOfCommonsPage() {
   const [url, setUrl] = useState('https://www.ourcommons.ca/Content/House/451/Debates/021/HAN021-E.XML');
   const [data, setData] = useState<HansardData | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [fullTranscript, setFullTranscript] = useState<string>('');
   const { toast } = useToast();
 
   const handleLoad = async () => {
     setIsLoading(true);
     setData(null);
-    setFullTranscript('');
     try {
       const res = await fetch(`/api/hansard?url=${encodeURIComponent(url)}`);
       if (!res.ok) {
@@ -43,12 +45,11 @@ export default function HouseOfCommonsPage() {
         throw new Error(errorData.error || 'Failed to load Hansard data.');
       }
       const jsonData: HansardData = await res.json();
-      setData(jsonData);
-      
-      if (jsonData.speeches) {
-        const transcript = jsonData.speeches.map(s => `Speaker: ${s.speaker || 'Unknown'}\nTime: ${s.timestamp || 'N/A'}\n\n${s.text}`).join('\n\n---\n\n');
-        setFullTranscript(transcript);
+      if (!jsonData.interventions || jsonData.interventions.length === 0) {
+        console.error("Parsed data but no interventions found", jsonData);
+        throw new Error("Parsing completed, but no interventions were found in the XML.");
       }
+      setData(jsonData);
 
     } catch (error) {
       console.error('Failed to get Hansard data:', error);
@@ -63,10 +64,16 @@ export default function HouseOfCommonsPage() {
     }
   };
 
-  const filteredSpeeches = data?.speeches.filter(s =>
-    s.text.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    s.speaker?.toLowerCase().includes(searchQuery.toLowerCase())
-  ) || [];
+  const getTextFromContent = (content: InterventionContent[]) => {
+    return content.filter(c => c.type === 'text').map(c => c.value).join(' ');
+  };
+
+  const filteredInterventions = data?.interventions.filter(i => {
+      const fullText = getTextFromContent(i.content).toLowerCase();
+      const speakerName = i.speaker?.toLowerCase() || '';
+      const query = searchQuery.toLowerCase();
+      return fullText.includes(query) || speakerName.includes(query);
+  }) || [];
 
   return (
     <div className="min-h-screen bg-background">
@@ -79,7 +86,7 @@ export default function HouseOfCommonsPage() {
               House of Commons Debates
             </CardTitle>
             <CardDescription>
-              Fetch and view transcripts from a Hansard XML URL.
+              Fetch and parse transcripts from a Hansard XML URL using Paratext analysis.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -92,23 +99,28 @@ export default function HouseOfCommonsPage() {
                 className="flex-1"
               />
               <Button onClick={handleLoad} disabled={isLoading}>
-                {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <BookOpen className="mr-2 h-4 w-4" />}
                 Load Transcript
               </Button>
             </div>
-            {data && (
-               <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                      placeholder="Search speeches by keyword or speaker..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="pl-10"
-                  />
-              </div>
-            )}
           </CardContent>
         </Card>
+        
+        {data && (
+            <Card className="mt-6">
+                <CardHeader>
+                    <CardTitle>Debate Information</CardTitle>
+                    <CardDescription>{data.meta.documentTitle}</CardDescription>
+                </CardHeader>
+                <CardContent className="flex flex-wrap gap-x-4 gap-y-2 text-sm">
+                    <p><span className="font-semibold">Date:</span> {data.meta.Date}</p>
+                    <p><span className="font-semibold">Parliament:</span> {data.meta.ParliamentNumber}</p>
+                    <p><span className="font-semibold">Session:</span> {data.meta.SessionNumber}</p>
+                    <p><span className="font-semibold">Volume:</span> {data.meta.VolumeNumber}</p>
+                    <p><span className="font-semibold">Number:</span> {data.meta.NumberNumber}</p>
+                </CardContent>
+            </Card>
+        )}
 
         {isLoading && (
             <div className="mt-6 flex justify-center items-center gap-2 text-muted-foreground">
@@ -117,44 +129,55 @@ export default function HouseOfCommonsPage() {
             </div>
         )}
 
-        {fullTranscript && (
-          <Collapsible className="mt-6">
-             <CollapsibleTrigger asChild>
-                <Button variant="outline" className="w-full">
-                  <BookText className="mr-2 h-4 w-4" />
-                  Toggle Full Transcript View
-                </Button>
-              </CollapsibleTrigger>
-            <CollapsibleContent>
-              <Card className="mt-2">
-                <CardHeader>
-                  <CardTitle>Full Transcript</CardTitle>
-                  <CardDescription>The complete text extracted from the XML for debugging.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <pre className="whitespace-pre-wrap font-mono text-xs bg-muted p-4 rounded-lg">{fullTranscript}</pre>
-                </CardContent>
-              </Card>
-            </CollapsibleContent>
-          </Collapsible>
-        )}
-
         {data && (
           <div className="mt-6 space-y-6">
-            <h2 className="text-xl font-bold">Speeches ({filteredSpeeches.length})</h2>
-            {filteredSpeeches.length > 0 ? filteredSpeeches.map((speech, i) => (
-              <Card key={i} className="shadow-sm">
-                <CardHeader className='pb-2'>
-                  <CardTitle className="text-base font-semibold">{speech.speaker || 'Unknown Speaker'}</CardTitle>
-                  {speech.timestamp && <CardDescription className="text-xs">{speech.timestamp}</CardDescription>}
+            <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                    placeholder={`Search ${filteredInterventions.length} interventions by keyword or speaker...`}
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-10 w-full"
+                />
+            </div>
+            
+            {filteredInterventions.length > 0 ? filteredInterventions.map((intervention) => (
+              <Card key={intervention.id} className="shadow-sm">
+                <CardHeader className='pb-3'>
+                  <CardTitle className="text-base font-semibold flex items-center gap-2">
+                    <User className="h-4 w-4 text-primary" />
+                    {intervention.speaker || 'Unknown Speaker'}
+                  </CardTitle>
+                  <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                    {intervention.affiliation && (
+                       <div className="flex items-center gap-1.5">
+                         <Building className="h-3 w-3" />
+                         <span>{intervention.affiliation}</span>
+                       </div>
+                    )}
+                     {intervention.type && <Badge variant="secondary">{intervention.type}</Badge>}
+                  </div>
                 </CardHeader>
                 <CardContent>
-                  <p className="whitespace-pre-wrap font-body text-sm leading-relaxed">{speech.text}</p>
+                  <div className="space-y-3">
+                    {intervention.content.map((item, index) => {
+                      if (item.type === 'text') {
+                        return <p key={index} className="whitespace-pre-wrap font-body text-sm leading-relaxed">{item.value}</p>
+                      }
+                      if (item.type === 'timestamp') {
+                        return <div key={index} className="flex items-center gap-2 text-xs text-muted-foreground font-mono"> <Clock className="h-3 w-3" /> {item.value} </div>
+                      }
+                      if (item.type === 'language') {
+                         return <div key={index} className="flex items-center gap-2 text-xs text-blue-600 italic"> <Languages className="h-3 w-3" /> {item.value} </div>
+                      }
+                      return null;
+                    })}
+                  </div>
                 </CardContent>
               </Card>
             )) : (
                 <div className="text-center py-10">
-                    <p className="text-muted-foreground">No speeches match your search query.</p>
+                    <p className="text-muted-foreground">No interventions match your search query.</p>
                 </div>
             )}
           </div>
