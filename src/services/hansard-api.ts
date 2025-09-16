@@ -24,7 +24,7 @@ export async function getHansardContent(): Promise<{transcript: string; url: str
     yesterday.setDate(yesterday.getDate() - 1);
     const dateString = yesterday.toISOString().split('T')[0]; // Format as YYYY-MM-DD
 
-    const apiUrl = `https://openparliament.ca/debates/?date=${dateString}&format=json`;
+    const apiUrl = `https://openparliament.ca/debates.json?date=${dateString}`;
     console.log(`Fetching Hansard from OpenParliament API: ${apiUrl}`);
 
     let rawResponse = '';
