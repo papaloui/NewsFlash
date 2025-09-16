@@ -5,12 +5,12 @@ import { useState } from 'react';
 import { Header } from '@/components/app/header';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
-import { Landmark, Loader2, Search, BookOpen, Clock, Languages, User, FileText as FileTextIcon, ExternalLink } from 'lucide-react';
+import { Landmark, Loader2, Search, BookOpen, Clock, Languages, User, FileText as FileTextIcon, ExternalLink, ScrollText } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { getSectionSummary } from './actions';
+import { getSectionSummary, getTranscriptSummary } from './actions';
 
 interface InterventionContent {
   type: 'text' | 'timestamp' | 'language';
@@ -38,11 +38,14 @@ export default function HouseOfCommonsPage() {
   const { toast } = useToast();
   const [summaries, setSummaries] = useState<Record<string, string>>({});
   const [summarizingId, setSummarizingId] = useState<string | null>(null);
+  const [fullSummary, setFullSummary] = useState<string | null>(null);
+  const [isSummarizingFull, setIsSummarizingFull] = useState(false);
 
   const handleLoad = async () => {
     setIsLoading(true);
     setData(null);
     setSummaries({});
+    setFullSummary(null);
     try {
       const res = await fetch(`/api/hansard?url=${encodeURIComponent(url)}`);
       if (!res.ok) {
@@ -78,6 +81,10 @@ export default function HouseOfCommonsPage() {
     return data.interventions.map(i => {
       const speaker = i.speaker || 'Unnamed Speaker';
       const text = getTextFromContent(i.content);
+      if (i.type === 'OrderOfBusiness' || i.type === 'SubjectOfBusiness') {
+        return `\n--- ${text} ---\n`;
+      }
+      if (!text) return '';
       return `${speaker}:\n${text}`;
     }).join('\n\n');
   };
@@ -97,6 +104,23 @@ export default function HouseOfCommonsPage() {
       setSummaries(prev => ({...prev, [sectionId]: `Error: ${errorMessage}`}));
     } finally {
       setSummarizingId(null);
+    }
+  }
+
+  const handleFullSummary = async () => {
+    const transcript = getFullTranscript();
+    if (!transcript) return;
+    setIsSummarizingFull(true);
+    setFullSummary(null);
+
+    try {
+      const summary = await getTranscriptSummary(transcript);
+      setFullSummary(summary);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred.';
+      setFullSummary(`Error generating summary: ${errorMessage}`);
+    } finally {
+      setIsSummarizingFull(false);
     }
   }
 
@@ -135,7 +159,7 @@ export default function HouseOfCommonsPage() {
       );
     }
 
-    if (!intervention.speaker || intervention.content.length === 0) return null;
+    if (!intervention.speaker || intervention.content.length === 0 || !getTextFromContent(intervention.content)) return null;
 
     return (
       <Card key={intervention.id || idx} className="shadow-sm ml-4">
@@ -220,6 +244,30 @@ export default function HouseOfCommonsPage() {
                     <p><span className="font-semibold">Session:</span> {data.meta.SessionNumber}</p>
                     <p><span className="font-semibold">Volume:</span> {data.meta.VolumeNumber}</p>
                     <p><span className="font-semibold">Number:</span> {data.meta.NumberNumber}</p>
+                </CardContent>
+                 <CardFooter>
+                    <Button onClick={handleFullSummary} disabled={isSummarizingFull}>
+                        {isSummarizingFull ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ScrollText className="mr-2 h-4 w-4" />}
+                        Generate Full Summary
+                    </Button>
+                </CardFooter>
+            </Card>
+        )}
+
+        {isSummarizingFull && (
+            <div className="mt-6 flex justify-center items-center gap-2 text-muted-foreground">
+                <Loader2 className="h-5 w-5 animate-spin" />
+                <span>Generating full summary... This may take a moment.</span>
+            </div>
+        )}
+
+        {fullSummary && (
+            <Card className="mt-6">
+                <CardHeader>
+                    <CardTitle>Full Debate Summary</CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <p className="whitespace-pre-wrap font-body text-sm leading-relaxed">{fullSummary}</p>
                 </CardContent>
             </Card>
         )}
