@@ -4,9 +4,15 @@ import { useState } from 'react';
 import { Header } from '@/components/app/header';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Landmark, Loader2, Search } from 'lucide-react';
+import { Landmark, Loader2, Search, BookText } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible"
+
 
 interface Speech {
     speaker?: string;
@@ -23,19 +29,27 @@ export default function HouseOfCommonsPage() {
   const [data, setData] = useState<HansardData | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [fullTranscript, setFullTranscript] = useState<string>('');
   const { toast } = useToast();
 
   const handleLoad = async () => {
     setIsLoading(true);
     setData(null);
+    setFullTranscript('');
     try {
       const res = await fetch(`/api/hansard?url=${encodeURIComponent(url)}`);
       if (!res.ok) {
         const errorData = await res.json();
         throw new Error(errorData.error || 'Failed to load Hansard data.');
       }
-      const jsonData = await res.json();
+      const jsonData: HansardData = await res.json();
       setData(jsonData);
+      
+      if (jsonData.speeches) {
+        const transcript = jsonData.speeches.map(s => `Speaker: ${s.speaker || 'Unknown'}\nTime: ${s.timestamp || 'N/A'}\n\n${s.text}`).join('\n\n---\n\n');
+        setFullTranscript(transcript);
+      }
+
     } catch (error) {
       console.error('Failed to get Hansard data:', error);
       const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred.';
@@ -103,8 +117,31 @@ export default function HouseOfCommonsPage() {
             </div>
         )}
 
+        {fullTranscript && (
+          <Collapsible className="mt-6">
+             <CollapsibleTrigger asChild>
+                <Button variant="outline" className="w-full">
+                  <BookText className="mr-2 h-4 w-4" />
+                  Toggle Full Transcript View
+                </Button>
+              </CollapsibleTrigger>
+            <CollapsibleContent>
+              <Card className="mt-2">
+                <CardHeader>
+                  <CardTitle>Full Transcript</CardTitle>
+                  <CardDescription>The complete text extracted from the XML for debugging.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <pre className="whitespace-pre-wrap font-mono text-xs bg-muted p-4 rounded-lg">{fullTranscript}</pre>
+                </CardContent>
+              </Card>
+            </CollapsibleContent>
+          </Collapsible>
+        )}
+
         {data && (
           <div className="mt-6 space-y-6">
+            <h2 className="text-xl font-bold">Speeches ({filteredSpeeches.length})</h2>
             {filteredSpeeches.length > 0 ? filteredSpeeches.map((speech, i) => (
               <Card key={i} className="shadow-sm">
                 <CardHeader className='pb-2'>
