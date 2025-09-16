@@ -8,6 +8,7 @@ export interface HansardSummaryResponse {
     debugInfo?: {
         url: string;
         transcript: string;
+        rawHtml: string;
     }
 }
 
@@ -16,11 +17,12 @@ export interface HansardSummaryResponse {
  * along with debug information.
  */
 export async function getHansardSummary(): Promise<HansardSummaryResponse> {
-  const { transcript, url } = await getHansardContent();
+  const { transcript, url, html } = await getHansardContent();
 
   const debugInfo = {
       url: url,
       transcript: transcript.substring(0, 5000) + (transcript.length > 5000 ? '... (truncated for display)' : ''),
+      rawHtml: html.substring(0, 20000) + (html.length > 20000 ? '... (truncated for display)' : ''),
   };
   
   try {

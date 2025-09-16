@@ -5,7 +5,7 @@ import { Header } from '@/components/app/header';
 import { getHansardSummary, type HansardSummaryResponse } from './actions';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Landmark, Loader2, Info } from 'lucide-react';
+import { Landmark, Loader2, Info, Code } from 'lucide-react';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 
 export default function HouseOfCommonsPage() {
@@ -82,12 +82,27 @@ export default function HouseOfCommonsPage() {
                                       <h4 className="font-semibold">Source URL:</h4>
                                       <a href={debugInfo.url} target="_blank" rel="noopener noreferrer" className="text-primary break-all">{debugInfo.url}</a>
                                   </div>
-                                  <div>
+                                   <div>
                                       <h4 className="font-semibold">Extracted Text (first 5000 chars):</h4>
-                                      <pre className="whitespace-pre-wrap font-code text-muted-foreground mt-1 p-2 border rounded-md bg-background">
+                                      <pre className="whitespace-pre-wrap font-code text-muted-foreground mt-1 p-2 border rounded-md bg-background max-h-60 overflow-y-auto">
                                         {debugInfo.transcript || "No content was extracted."}
                                       </pre>
                                   </div>
+                                   <Accordion type="single" collapsible className="w-full">
+                                      <AccordionItem value="raw-html">
+                                          <AccordionTrigger>
+                                             <div className="flex items-center gap-2 text-sm">
+                                                 <Code className="h-4 w-4" />
+                                                 Show Raw HTML
+                                             </div>
+                                          </AccordionTrigger>
+                                          <AccordionContent>
+                                              <pre className="whitespace-pre-wrap font-code text-muted-foreground mt-1 p-2 border rounded-md bg-background max-h-80 overflow-y-auto">
+                                                {debugInfo.rawHtml || "No HTML content was fetched."}
+                                              </pre>
+                                          </AccordionContent>
+                                      </AccordionItem>
+                                  </Accordion>
                               </div>
                           </AccordionContent>
                       </AccordionItem>
