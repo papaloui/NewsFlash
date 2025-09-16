@@ -29,7 +29,6 @@ const prompt = ai.definePrompt({
     input: { schema: SummarizeHansardTranscriptInputSchema },
     output: { schema: SummarizeHansardTranscriptOutputSchema },
     config: {
-        model: 'googleai/gemini-2.5-flash',
         maxOutputTokens: 2048,
     },
     prompt: `You are an expert parliamentary analyst. Your task is to provide a robust, accurate, and comprehensive summary of the following parliamentary debate from a Hansard transcript. The summary should be about a page long.
