@@ -91,8 +91,8 @@ export async function processFeeds(feedUrls: string[]): Promise<SummarizedArticl
         throw new Error("No articles could be fetched from the provided RSS feeds.");
     }
     
-    // Limit to 50 articles to avoid overwhelming AI services
-    allArticles = allArticles.slice(0, 50);
+    // Limit to 10 articles to avoid overwhelming AI services
+    allArticles = allArticles.slice(0, 10);
 
     // 2. Headline Summarization for each article
     const articlesWithHeadlineSummariesPromises = allArticles.map(async (article) => {
@@ -107,16 +107,16 @@ export async function processFeeds(feedUrls: string[]): Promise<SummarizedArticl
 
     const articlesWithHeadlineSummaries = await Promise.all(articlesWithHeadlineSummariesPromises);
 
-    // 3. Rank articles and select top 3
+    // 3. Rank articles and select top 1
     const rankedArticles = await rankArticles(articlesWithHeadlineSummaries);
-    const top3Articles = rankedArticles.sort((a, b) => b.relevanceScore - a.relevanceScore).slice(0, 3);
+    const topArticle = rankedArticles.sort((a, b) => b.relevanceScore - a.relevanceScore).slice(0, 1);
     
-    if (top3Articles.length === 0) {
+    if (topArticle.length === 0) {
         throw new Error("AI could not rank any articles.");
     }
 
-    // 4. Fetch article content and get full summary for top 3
-    const finalArticlesPromises = top3Articles.map(async (article) => {
+    // 4. Fetch article content and get full summary for the top article
+    const finalArticlesPromises = topArticle.map(async (article) => {
       try {
         const response = await fetch(article.link, { headers: { 'User-Agent': 'NewsFlashAggregator/1.0' } });
         if (!response.ok) throw new Error(`Failed to fetch article content for ${article.link}`);
@@ -143,7 +143,7 @@ export async function processFeeds(feedUrls: string[]): Promise<SummarizedArticl
   } catch (error) {
     console.error("An error occurred in processFeeds:", error);
     if (error instanceof Error) {
-        throw new Error(error.message);
+        throw error;
     }
     throw new Error("Failed to process news feeds. Please check the console for more details.");
   }
