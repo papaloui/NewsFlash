@@ -62,19 +62,27 @@ export async function newsAgent(input: NewsAgentInput): Promise<NewsAgentOutput>
   const llmResponse = await agentPrompt(input);
   const toolCalls = llmResponse.toolCalls();
 
-  if (toolCalls.length === 0) {
-      return llmResponse.output() || { response: "I'm not sure how to handle that request." };
+  let toolOutputs: any[] = [];
+  if (toolCalls.length > 0) {
+      toolOutputs = await Promise.all(
+        toolCalls.map(async (toolCall) => {
+            const tool = agentPrompt.tools[toolCall.name];
+            if (!tool) throw new Error(`Unknown tool: ${toolCall.name}`);
+            const output = await tool.run(toolCall.input);
+            return { call: toolCall, output };
+        })
+      );
+  } else {
+    // If no tool is called, but the user is asking for news, call the news tool by default.
+    const toolCall = {
+        name: 'searchNews',
+        input: { query: input.query },
+    };
+    const tool = agentPrompt.tools[toolCall.name];
+    const output = await tool.run(toolCall.input);
+    toolOutputs.push({ call: toolCall, output: output });
   }
   
-  const toolOutputs = await Promise.all(
-      toolCalls.map(async (toolCall) => {
-          const tool = agentPrompt.tools[toolCall.name];
-          if (!tool) throw new Error(`Unknown tool: ${toolCall.name}`);
-          const output = await tool.run(toolCall.input);
-          return { call: toolCall, output };
-      })
-  );
-
   const finalResponse = await agentPrompt(input, { toolResponse: toolOutputs });
   
   const output = finalResponse.output();
@@ -83,6 +91,7 @@ export async function newsAgent(input: NewsAgentInput): Promise<NewsAgentOutput>
     const digestSummary = await summarizeHeadlinesDigest(output.articles.map(a => a.headline));
     output.digest = digestSummary.digest;
   }
-
+  
+  // Ensure we always return a valid NewsAgentOutput object, even if the model fails.
   return output || { response: "I was unable to process your request." };
 }

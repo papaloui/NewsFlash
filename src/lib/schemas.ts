@@ -1,4 +1,8 @@
 import { z } from 'zod';
+import type { SearchNewsAndRankOutput } from './schemas';
+
+export type ArticleWithSummary = SearchNewsAndRankOutput[0] & { fullSummary?: string; isSummarizing?: boolean };
+
 
 export const SearchNewsAndRankInputSchema = z.object({
   query: z.string().describe('The search query for news articles.'),
@@ -24,7 +28,7 @@ export const NewsAgentInputSchema = z.object({
 export type NewsAgentInput = z.infer<typeof NewsAgentInputSchema>;
 
 export const NewsAgentOutputSchema = z.object({
-    response: z.string().describe('A direct textual response to the user if no articles or web results are relevant.'),
+    response: z.string().optional().describe('A direct textual response to the user if no articles or web results are relevant.'),
     articles: z.array(
         z.object({
             headline: z.string(),

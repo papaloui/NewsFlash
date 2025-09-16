@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { newsAgent } from '@/ai/flows/news-agent';
 import { useToast } from '@/hooks/use-toast';
 import { Sparkles } from 'lucide-react';
-import type { ArticleWithSummary } from '@/app/page';
+import type { ArticleWithSummary } from '@/lib/schemas';
 
 interface ChatInterfaceProps {
     setArticles: (articles: ArticleWithSummary[]) => void;
@@ -46,6 +46,8 @@ export function ChatInterface({ setArticles, setIsFetching, setDigest }: ChatInt
                     title: 'AI Response',
                     description: result.response,
                 });
+                // Clear articles if we get a direct response
+                setArticles([]); 
             }
 
         } catch (error) {

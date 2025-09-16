@@ -1,24 +1,51 @@
 'use client';
 
-import { useState } from 'react';
-import { searchNewsAndRank } from '@/ai/flows/search-news-and-rank';
-import { summarizeHeadlinesDigest } from '@/ai/flows/summarize-headlines-digest';
+import { useEffect, useState } from 'react';
 import { Header } from '@/components/app/header';
 import { NewsBoard } from '@/components/app/news-board';
 import { NewsBoardSkeleton } from '@/components/app/skeletons';
-import type { SearchNewsAndRankOutput } from '@/lib/schemas';
+import type { ArticleWithSummary } from '@/lib/schemas';
 import { useToast } from "@/hooks/use-toast";
 import { DailyDigest } from '@/components/app/daily-digest';
 import { getArticleSummary } from './actions';
 import { ChatInterface } from '@/components/app/chat-interface';
-
-export type ArticleWithSummary = SearchNewsAndRankOutput[0] & { fullSummary?: string; isSummarizing?: boolean };
+import { newsAgent } from '@/ai/flows/news-agent';
 
 export default function Home() {
   const [articles, setArticles] = useState<ArticleWithSummary[]>([]);
-  const [isFetching, setIsFetching] = useState(false);
+  const [isFetching, setIsFetching] = useState(true); // Start with fetching state
   const [digest, setDigest] = useState<string | null>(null);
   const { toast } = useToast();
+
+  useEffect(() => {
+    // Fetch initial global news digest on page load
+    const fetchInitialDigest = async () => {
+      setIsFetching(true);
+      try {
+        const result = await newsAgent({ query: 'global news' });
+        if (result.articles) {
+          const sortedResults = result.articles.sort((a, b) => b.relevanceScore - a.relevanceScore);
+          setArticles(sortedResults);
+        }
+        if (result.digest) {
+          setDigest(result.digest);
+        }
+      } catch (error) {
+        console.error(error);
+        const errorMessage = error instanceof Error ? error.message : "An unknown error occurred.";
+        toast({
+          variant: 'destructive',
+          title: 'Error',
+          description: `Failed to fetch initial news: ${errorMessage}`,
+        });
+      } finally {
+        setIsFetching(false);
+      }
+    };
+
+    fetchInitialDigest();
+  }, [toast]);
+
 
   const handleSummarizeArticle = async (articleLink: string) => {
     setArticles(prev => prev.map(a => a.link === articleLink ? { ...a, isSummarizing: true } : a));
@@ -49,6 +76,7 @@ export default function Home() {
         />
 
         {isFetching && <NewsBoardSkeleton />}
+        
         {!isFetching && digest && <DailyDigest digest={digest} />}
         
         <div className="transition-opacity duration-300">
