@@ -1,10 +1,77 @@
 'use server';
 
-import { JSDOM } from 'jsdom';
+import { XMLParser } from 'fast-xml-parser';
 
 /**
  * @fileoverview Service for fetching and parsing House of Commons debates from XML.
  */
+
+interface Speech {
+    speaker: string;
+    content: string;
+}
+
+// Tolerant walker to extract text from different node structures.
+function getTextFromNode(node: any): string {
+    if (node == null) return '';
+    if (typeof node === 'string') return node.trim();
+    if (Array.isArray(node)) return node.map(getTextFromNode).join(' ').trim();
+    
+    let text = '';
+    if (typeof node === 'object') {
+        for (const key of Object.keys(node)) {
+            // #text is a common property for text content in fast-xml-parser
+            if (key === '#text') {
+                text += ' ' + node[key];
+            } else if (key.toLowerCase() === 'p' || key.toLowerCase() === 'para') {
+                text += ' ' + getTextFromNode(node[key]);
+            }
+        }
+    }
+    return text.trim();
+}
+
+
+function extractSpeechesFromParsedXML(obj: any): Speech[] {
+    const speeches: Speech[] = [];
+
+    // The root object often contains nested structures leading to the debates.
+    // We can recursively search for 'Intervention' which seems to be the container for each speech.
+    function findInterventions(currentObj: any) {
+        if (!currentObj || typeof currentObj !== 'object') return;
+
+        const key = 'Intervention';
+        if (key in currentObj) {
+            const interventions = Array.isArray(currentObj[key]) ? currentObj[key] : [currentObj[key]];
+            
+            for (const item of interventions) {
+                let speaker = 'Unknown Speaker';
+                // The speaker's name can be in various tags.
+                const speakerNode = item.PersonSpeaking || item.persontitle || item.PersonTitle;
+                if (speakerNode && typeof speakerNode === 'object' && speakerNode['#text']) {
+                    speaker = speakerNode['#text'].replace(/:$/, '').trim();
+                } else if (typeof speakerNode === 'string') {
+                    speaker = speakerNode.replace(/:$/, '').trim();
+                }
+                
+                const content = getTextFromNode(item);
+
+                if (content) {
+                    speeches.push({ speaker, content });
+                }
+            }
+        } else {
+            // Recurse through the object to find interventions
+            for (const k of Object.keys(currentObj)) {
+                findInterventions(currentObj[k]);
+            }
+        }
+    }
+
+    findInterventions(obj);
+    return speeches;
+}
+
 
 /**
  * Fetches the transcript content for a specific House of Commons debate from an XML source.
@@ -32,45 +99,24 @@ export async function getHansardContent(): Promise<{transcript: string; url: str
         const xmlText = await response.text();
         rawResponse = xmlText;
 
-        const dom = new JSDOM(xmlText, { contentType: 'application/xml' });
-        const interventions = dom.window.document.querySelectorAll('intervention');
-
-        if (!interventions || interventions.length === 0) {
-            return {
-                transcript: `No debates found in the XML from ${xmlUrl}.`,
-                url: xmlUrl,
-                rawResponse
-            };
-        }
-
-        const transcriptParts: string[] = [];
-        interventions.forEach(intervention => {
-            const speakerElement = intervention.querySelector('persontitle, personspeaking');
-            const speakerName = speakerElement ? speakerElement.textContent?.trim().replace(/:$/, '') : 'Unknown Speaker';
-            
-            const contentParts: string[] = [];
-            intervention.querySelectorAll('p').forEach(p => {
-                const textContent = p.textContent?.trim();
-                if (textContent) {
-                    contentParts.push(textContent);
-                }
-            });
-
-            const fullContent = contentParts.join(' ');
-            if (fullContent) {
-                transcriptParts.push(`**${speakerName}**: ${fullContent}`);
-            }
+        const parser = new XMLParser({
+            ignoreAttributes: false,
+            // Keep text nodes, which is where content often lives.
+            textNodeName: "#text"
         });
+        const parsedObj = parser.parse(xmlText);
 
-        const fullTranscript = transcriptParts.join('\n\n');
-
-        if (!fullTranscript.trim()) {
-             return {
-                transcript: `Could not parse any content from the interventions in ${xmlUrl}. The structure might have changed.`,
+        const speeches = extractSpeechesFromParsedXML(parsedObj);
+        
+        if (speeches.length === 0) {
+            return {
+                transcript: `No debates could be parsed from the XML at ${xmlUrl}.`,
                 url: xmlUrl,
                 rawResponse
             };
         }
+
+        const fullTranscript = speeches.map(s => `**${s.speaker}**: ${s.content}`).join('\n\n');
 
         return { transcript: fullTranscript, url: xmlUrl, rawResponse };
 
