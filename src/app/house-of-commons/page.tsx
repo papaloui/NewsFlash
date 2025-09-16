@@ -11,6 +11,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { getSectionSummary, getTranscriptSummary } from './actions';
+import { HansardChat } from '@/components/app/hansard-chat';
+
 
 interface InterventionContent {
   type: 'text' | 'timestamp' | 'language';
@@ -54,7 +56,6 @@ export default function HouseOfCommonsPage() {
       }
       const jsonData: HansardData = await res.json();
       if (!jsonData.interventions || jsonData.interventions.length === 0) {
-        console.error("Parsed data but no interventions found", jsonData);
         throw new Error("Parsing completed, but no interventions were found in the XML.");
       }
       setData(jsonData);
@@ -272,6 +273,10 @@ export default function HouseOfCommonsPage() {
             </Card>
         )}
         
+        {fullSummary && data && (
+          <HansardChat transcript={getFullTranscript()} summary={fullSummary} />
+        )}
+
         {isLoading && (
             <div className="mt-6 flex justify-center items-center gap-2 text-muted-foreground">
                 <Loader2 className="h-5 w-5 animate-spin" />
