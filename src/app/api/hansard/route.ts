@@ -44,7 +44,7 @@ function extractSpeechesFromParsedXML(obj: any): any[] {
                 
                 for (const s of speechList) {
                     const speakerNode = s.speaker;
-                    const speaker = speakerNode?.name || 'Unknown Speaker';
+                    const speaker = (typeof speakerNode === 'string' ? speakerNode : (speakerNode?.['#text'] || 'Unknown Speaker')).trim();
                     const timestamp = s["@_time"] || null;
                     
                     let text = '';
@@ -91,17 +91,16 @@ export async function GET(req: NextRequest) {
     const parser = new XMLParser({
       ignoreAttributes: false,
       attributeNamePrefix: '@_',
-      textNodeName: "#text"
+      textNodeName: "#text",
+      trimValues: true,
     });
     const parsedObj = parser.parse(xmlText);
     
     const speeches = extractSpeechesFromParsedXML(parsedObj);
 
     if (speeches.length === 0) {
-        // Now returns the raw XML in the 'debug' field if parsing fails
         return NextResponse.json({ 
             error: 'Could not parse any speeches from the provided XML.',
-            debug: { rawXml: xmlText }
         }, { status: 500 });
     }
 
