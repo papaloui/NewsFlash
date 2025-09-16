@@ -62,7 +62,7 @@ export async function GET(req: NextRequest) {
         });
     }
     meta.documentTitle = (typeof hansardDoc.DocumentTitle === 'object' && hansardDoc.DocumentTitle !== null) 
-      ? hansardDoc.DocumentTitle['#text'] 
+      ? (hansardDoc.DocumentTitle.DocumentName || hansardDoc.DocumentTitle['#text'])
       : hansardDoc.DocumentTitle;
 
 
@@ -93,9 +93,19 @@ export async function GET(req: NextRequest) {
                     // Extract speaker and affiliation
                     if (item.PersonSpeaking) {
                         const personNode = item.PersonSpeaking;
-                        intervention.speaker = personNode['#text']?.replace(':', '').trim();
-                        if (personNode.Affiliation) {
-                            intervention.affiliation = personNode.Affiliation['#text'];
+                        const speakerText = personNode['#text'] || personNode.Affiliation?.['#text'];
+                        intervention.speaker = speakerText?.replace(':', '').trim();
+                        
+                        if (personNode.Affiliation && personNode.Affiliation['#text']) {
+                             const affiliationText = personNode.Affiliation['#text'];
+                             // If speaker was accidentally set to affiliation, find the real speaker name
+                             if (intervention.speaker === affiliationText) {
+                                const fullText = personNode['#text'];
+                                if(fullText) {
+                                    intervention.speaker = fullText.replace(affiliationText, '').replace(':', '').trim();
+                                }
+                             }
+                             intervention.affiliation = affiliationText;
                         }
                     }
                     
