@@ -32,7 +32,7 @@ const nextConfig: NextConfig = {
   },
   experimental: {
     serverActions: {
-      maxDuration: 120, // 2 minutes
+      maxDuration: 300, // 5 minutes
       bodySizeLimit: '4mb',
     }
   }
