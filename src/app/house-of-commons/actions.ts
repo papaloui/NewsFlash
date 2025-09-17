@@ -6,47 +6,71 @@ import { hansardAgent } from "@/ai/flows/hansard-agent";
 import type { SummarizeHansardTranscriptOutput } from "@/lib/schemas";
 import { logDebug } from "@/lib/logger";
 
-// This function is no longer needed as we are not summarizing sections individually.
-// It can be removed or left here for potential future use.
-// For now we will comment it out to avoid confusion.
-/*
-import { summarizeHansardSection } from "@/ai/flows/summarize-hansard-section";
-export async function getSectionSummary(sectionText: string): Promise<string> {
-    try {
-        if (!sectionText || sectionText.trim().length < 50) {
-            return "Not enough content to summarize.";
-        }
-        const result = await summarizeHansardSection({ sectionText });
-        return result.summary;
-    } catch (error) {
-        console.error("Error getting section summary:", error);
-        if (error instanceof Error) {
-            return `Error: ${error.message}`;
-        }
-        return "An unknown error occurred while summarizing the section.";
-    }
-}
-*/
+// In-memory cache for long-running jobs.
+// NOTE: In a production, multi-instance environment, you would use a persistent store like Firestore or Redis.
+const jobCache = new Map<string, Promise<SummarizeHansardTranscriptOutput>>();
 
-export async function getTranscriptSummary(transcript: string): Promise<SummarizeHansardTranscriptOutput> {
-    logDebug('getTranscriptSummary server action invoked.');
+export async function startTranscriptSummary(transcript: string): Promise<{ jobId: string }> {
+    logDebug('startTranscriptSummary server action invoked.');
     try {
         if (!transcript || transcript.length === 0) {
             throw new Error("Not enough content to create a full summary.");
         }
-        // Return the full result, which includes debugInfo
-        const result = await summarizeHansardTranscript({ transcript });
-        logDebug('getTranscriptSummary server action completed successfully.');
-        return result;
+        
+        const jobId = `summary-${Date.now()}`;
+        
+        // Start the summarization but don't await it. Store the promise in the cache.
+        const summaryPromise = summarizeHansardTranscript({ transcript });
+        jobCache.set(jobId, summaryPromise);
+        
+        logDebug(`Started summary job with ID: ${jobId}`);
+        return { jobId };
+
     } catch (error) {
-        console.error("Error getting transcript summary:", error);
-        logDebug('getTranscriptSummary server action failed.', error);
+        console.error("Error starting transcript summary job:", error);
+        logDebug('startTranscriptSummary server action failed.', error);
         if (error instanceof Error) {
-            throw new Error(`Error getting transcript summary: ${error.message}`);
+            throw new Error(`Error starting summary job: ${error.message}`);
         }
-        throw new Error("An unknown error occurred while creating the summary.");
+        throw new Error("An unknown error occurred while starting the summary job.");
     }
 }
+
+export async function checkSummaryJob(jobId: string): Promise<{ status: 'pending' | 'completed' | 'error', result?: SummarizeHansardTranscriptOutput, error?: string }> {
+    logDebug(`Checking status for job ID: ${jobId}`);
+    
+    const summaryPromise = jobCache.get(jobId);
+
+    if (!summaryPromise) {
+        return { status: 'error', error: 'Job not found.' };
+    }
+
+    // Use Promise.race to check status without waiting for the promise to resolve if it's not ready.
+    const result = await Promise.race([
+        summaryPromise,
+        new Promise(resolve => setTimeout(() => resolve('pending'), 100)) // 100ms timeout to check status
+    ]);
+
+    if (result === 'pending') {
+        logDebug(`Job ${jobId} is still pending.`);
+        return { status: 'pending' };
+    }
+
+    try {
+        // If it's not 'pending', the promise has resolved. Await it again to get the actual result.
+        const finalResult = await summaryPromise;
+        logDebug(`Job ${jobId} completed successfully.`);
+        jobCache.delete(jobId); // Clean up the cache
+        return { status: 'completed', result: finalResult };
+    } catch (error) {
+        console.error(`Error in completed job ${jobId}:`, error);
+        logDebug(`Job ${jobId} failed with an error.`, error);
+        jobCache.delete(jobId); // Clean up the cache
+        const errorMessage = error instanceof Error ? error.message : "An unknown error occurred during summarization.";
+        return { status: 'error', error: errorMessage };
+    }
+}
+
 
 export async function askHansardAgent(transcript: string, summary: string, query: string): Promise<string> {
     try {

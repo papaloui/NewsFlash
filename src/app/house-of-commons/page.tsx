@@ -1,16 +1,16 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Header } from '@/components/app/header';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
-import { Landmark, Loader2, Search, BookOpen, Clock, Languages, User, FileText as FileTextIcon, ExternalLink, ScrollText, Bug } from 'lucide-react';
+import { Landmark, Loader2, Search, BookOpen, Clock, Languages, User, FileText as FileTextIcon, ExternalLink, ScrollText, Bug, Hourglass } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { getTranscriptSummary } from './actions';
+import { startTranscriptSummary, checkSummaryJob } from './actions';
 import { HansardChat } from '@/components/app/hansard-chat';
 
 
@@ -50,16 +50,25 @@ export default function HouseOfCommonsPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const { toast } = useToast();
-  const [summaries, setSummaries] = useState<Record<string, string>>({});
-  const [summarizingId, setSummarizingId] = useState<string | null>(null);
   const [fullSummary, setFullSummary] = useState<FullSummary | null>(null);
   const [isSummarizingFull, setIsSummarizingFull] = useState(false);
   const [summaryError, setSummaryError] = useState<string | null>(null);
+  const [jobId, setJobId] = useState<string | null>(null);
+
+  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Cleanup interval on component unmount
+  useEffect(() => {
+    return () => {
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+      }
+    };
+  }, []);
 
   const handleLoad = async () => {
     setIsLoading(true);
     setData(null);
-    setSummaries({});
     setFullSummary(null);
     try {
       const res = await fetch(`/api/hansard?url=${encodeURIComponent(url)}`);
@@ -103,20 +112,49 @@ export default function HouseOfCommonsPage() {
     }).join('\n\n');
   }
 
+  const pollJobStatus = (id: string) => {
+    pollingIntervalRef.current = setInterval(async () => {
+      try {
+        const statusResult = await checkSummaryJob(id);
+        if (statusResult.status === 'completed') {
+          setFullSummary(statusResult.result!);
+          setIsSummarizingFull(false);
+          setJobId(null);
+          if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
+        } else if (statusResult.status === 'error') {
+          setSummaryError(`Error generating summary: ${statusResult.error}`);
+          setIsSummarizingFull(false);
+          setJobId(null);
+          if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
+        }
+        // If 'pending', do nothing and wait for the next interval
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred while polling.';
+        setSummaryError(errorMessage);
+        setIsSummarizingFull(false);
+        setJobId(null);
+        if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
+      }
+    }, 5000); // Poll every 5 seconds
+  };
+
   const handleFullSummary = async () => {
     const transcriptText = getFullTranscriptText();
     if (transcriptText.length === 0) return;
+    
     setIsSummarizingFull(true);
     setFullSummary(null);
     setSummaryError(null);
+    setJobId(null);
+    if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
 
     try {
-      const summaryResult = await getTranscriptSummary(transcriptText);
-      setFullSummary(summaryResult);
+      const { jobId: newJobId } = await startTranscriptSummary(transcriptText);
+      setJobId(newJobId);
+      pollJobStatus(newJobId);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred.';
-      setSummaryError(`Error generating summary: ${errorMessage}`);
-    } finally {
+      setSummaryError(`Error starting summary job: ${errorMessage}`);
       setIsSummarizingFull(false);
     }
   }
@@ -231,8 +269,8 @@ export default function HouseOfCommonsPage() {
                 </CardContent>
                  <CardFooter>
                     <Button onClick={handleFullSummary} disabled={isSummarizingFull}>
-                        {isSummarizingFull ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ScrollText className="mr-2 h-4 w-4" />}
-                        Generate Full Summary
+                        {isSummarizingFull ? <Hourglass className="mr-2 h-4 w-4 animate-spin" /> : <ScrollText className="mr-2 h-4 w-4" />}
+                        {isSummarizingFull ? 'Summarizing...' : 'Generate Full Summary'}
                     </Button>
                 </CardFooter>
             </Card>
@@ -241,7 +279,7 @@ export default function HouseOfCommonsPage() {
         {isSummarizingFull && (
             <div className="mt-6 flex justify-center items-center gap-2 text-muted-foreground">
                 <Loader2 className="h-5 w-5 animate-spin" />
-                <span>Generating full summary... This may take a minute or more depending on the transcript length.</span>
+                <span>Summarization in progress. This may take several minutes. You can leave this page and come back.</span>
             </div>
         )}
 
