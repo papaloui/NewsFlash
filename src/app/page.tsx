@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -7,29 +8,48 @@ import { NewsBoardSkeleton } from '@/components/app/skeletons';
 import type { ArticleWithSummary } from '@/lib/schemas';
 import { useToast } from "@/hooks/use-toast";
 import { DailyDigest } from '@/components/app/daily-digest';
-import { getArticleSummary } from './actions';
-import { ChatInterface } from '@/components/app/chat-interface';
+import { getArticleContent } from './actions';
 import { newsAgent } from '@/ai/flows/news-agent';
 
+// Add a 'body' property to our Article type
+export type ArticleWithContent = ArticleWithSummary & { body?: string };
+
 export default function Home() {
-  const [articles, setArticles] = useState<ArticleWithSummary[]>([]);
-  const [isFetching, setIsFetching] = useState(true); // Start with fetching state
+  const [articles, setArticles] = useState<ArticleWithContent[]>([]);
+  const [isFetching, setIsFetching] = useState(true);
   const [digest, setDigest] = useState<string | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
-    // Fetch initial global news digest on page load
-    const fetchInitialDigest = async () => {
+    const fetchNewsAndContent = async () => {
       setIsFetching(true);
       try {
-        // Fetch top headlines from curated sources
+        // 1. Fetch top headlines
         const result = await newsAgent({ query: 'top headlines' });
-        if (result.articles) {
-          const sortedResults = result.articles.sort((a, b) => b.relevanceScore - a.relevanceScore);
-          setArticles(sortedResults);
-        }
+        
         if (result.digest) {
           setDigest(result.digest);
+        }
+
+        if (result.articles) {
+          const top5Articles = result.articles.sort((a, b) => b.relevanceScore - a.relevanceScore).slice(0, 5);
+          setArticles(top5Articles);
+          
+          // 2. For each article, fetch its full content
+          top5Articles.forEach(async (article) => {
+            try {
+              const body = await getArticleContent(article.link);
+              setArticles(prev => 
+                prev.map(a => a.link === article.link ? { ...a, body } : a)
+              );
+            } catch (error) {
+               console.error(`Failed to fetch content for ${article.link}`, error);
+               setArticles(prev => 
+                prev.map(a => a.link === article.link ? { ...a, body: "Could not load article content." } : a)
+              );
+            }
+          });
+
         }
       } catch (error) {
         console.error(error);
@@ -37,34 +57,16 @@ export default function Home() {
         toast({
           variant: 'destructive',
           title: 'Error',
-          description: `Failed to fetch initial news: ${errorMessage}`,
+          description: `Failed to fetch news: ${errorMessage}`,
         });
       } finally {
         setIsFetching(false);
       }
     };
 
-    fetchInitialDigest();
+    fetchNewsAndContent();
   }, [toast]);
 
-
-  const handleSummarizeArticle = async (articleLink: string) => {
-    setArticles(prev => prev.map(a => a.link === articleLink ? { ...a, isSummarizing: true } : a));
-
-    try {
-        const summary = await getArticleSummary(articleLink, articleLink);
-        setArticles(prev => prev.map(a => a.link === articleLink ? { ...a, fullSummary: summary, isSummarizing: false } : a));
-    } catch (error) {
-        console.error("Failed to get summary", error);
-        const errorMessage = error instanceof Error ? `Summarization failed: ${error.message}` : "Summarization failed.";
-        setArticles(prev => prev.map(a => a.link === articleLink ? { ...a, fullSummary: errorMessage, isSummarizing: false } : a));
-        toast({
-            variant: "destructive",
-            title: "Error",
-            description: errorMessage
-        });
-    }
-  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -76,15 +78,9 @@ export default function Home() {
           {!isFetching && digest && <DailyDigest digest={digest} />}
           
           <div className="transition-opacity duration-300">
-              {!isFetching && <NewsBoard articles={articles} onSummarize={handleSummarizeArticle} />}
+              {!isFetching && <NewsBoard articles={articles} onSummarize={() => {}} />}
           </div>
         </div>
-        
-        <ChatInterface 
-          setArticles={setArticles}
-          setIsFetching={setIsFetching}
-          setDigest={setDigest}
-        />
       </main>
     </div>
   );

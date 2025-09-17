@@ -1,11 +1,15 @@
+
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Calendar, Globe, ExternalLink, FileText, Loader2 } from "lucide-react";
 import type { ArticleWithSummary } from "@/lib/schemas";
 import { Badge } from "../ui/badge";
 
+// Updated type to expect a 'body' property
+type ArticleWithContent = ArticleWithSummary & { body?: string };
+
 interface ArticleListItemProps {
-  article: ArticleWithSummary;
+  article: ArticleWithContent;
   onSummarize: (link: string) => void;
 }
 
@@ -30,13 +34,18 @@ export function ArticleListItem({ article, onSummarize }: ArticleListItemProps) 
           </div>
         </div>
 
-        {article.fullSummary && (
+        {article.body ? (
           <div className="pt-3 border-t">
             <h4 className="text-sm font-semibold mb-1 flex items-center gap-2">
               <FileText className="h-4 w-4" />
-              Article Summary
+              Article Body
             </h4>
-            <p className="text-sm text-muted-foreground">{article.fullSummary}</p>
+            <p className="text-sm text-muted-foreground max-h-48 overflow-y-auto">{article.body}</p>
+          </div>
+        ) : (
+          <div className="pt-3 border-t flex items-center gap-2 text-muted-foreground">
+             <Loader2 className="h-4 w-4 animate-spin" />
+             <span>Fetching article content...</span>
           </div>
         )}
 
@@ -47,16 +56,6 @@ export function ArticleListItem({ article, onSummarize }: ArticleListItemProps) 
                 Read Original
               </a>
            </Button>
-           {!article.fullSummary && (
-                <Button onClick={() => onSummarize(article.link)} disabled={article.isSummarizing} size="sm">
-                    {article.isSummarizing ? (
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    ) : (
-                        <FileText className="mr-2 h-4 w-4" />
-                    )}
-                    Summarize
-                </Button>
-            )}
         </div>
       </CardContent>
     </Card>
