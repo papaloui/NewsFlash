@@ -28,6 +28,9 @@ const prompt = ai.definePrompt({
     name: 'summarizeHansardSectionPrompt',
     input: { schema: SummarizeHansardSectionInputSchema },
     output: { schema: SummarizeHansardSectionOutputSchema },
+    config: {
+        maxOutputTokens: 1024,
+    },
     prompt: `You are an expert parliamentary assistant. Your task is to summarize a section of a parliamentary debate from the Hansard transcript.
 
 The user will provide the text of a section. Identify the key speakers, the main topics discussed, and any motions or votes that occurred. Provide a concise, neutral summary.

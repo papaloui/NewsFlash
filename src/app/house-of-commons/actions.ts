@@ -25,6 +25,7 @@ export async function getTranscriptSummary(transcript: string): Promise<Summariz
         if (!transcript || transcript.trim().length < 100) {
             throw new Error("Not enough content to create a full summary.");
         }
+        // The flow now takes the object { transcript: string }
         const result = await summarizeHansardTranscript({ transcript });
         return result;
     } catch (error) {
