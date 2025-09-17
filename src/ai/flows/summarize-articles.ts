@@ -59,6 +59,11 @@ const summarizeArticlesFlow = ai.defineFlow(
     },
     async (input) => {
         const { output } = await summarizeArticlesPrompt(input);
-        return output || [];
+        
+        if (!output) {
+            throw new Error("The AI model did not return any output. The response was empty.");
+        }
+
+        return output;
     }
 );
