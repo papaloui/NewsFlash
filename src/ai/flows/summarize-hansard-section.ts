@@ -28,8 +28,9 @@ const prompt = ai.definePrompt({
     name: 'summarizeHansardSectionPrompt',
     input: { schema: SummarizeHansardSectionInputSchema },
     output: { schema: SummarizeHansardSectionOutputSchema },
+    model: 'googleai/gemini-2.5-pro',
     config: {
-        maxOutputTokens: 1024,
+        maxOutputTokens: 2048,
     },
     prompt: `You are an expert parliamentary assistant. Your task is to summarize a section of a parliamentary debate from the Hansard transcript.
 

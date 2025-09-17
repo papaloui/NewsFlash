@@ -11,7 +11,7 @@
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 import { summarizeHansardSection } from './summarize-hansard-section';
-import type { SummarizeHansardTranscriptInput, SummarizeHansardTranscriptOutput } from '@/lib/schemas';
+import type { SummarizeHansardTranscriptInput, SummarizeHansardTranscriptOutput, TranscriptChunk } from '@/lib/schemas';
 import { SummarizeHansardTranscriptInputSchema, SummarizeHansardTranscriptOutputSchema } from '@/lib/schemas';
 
 
@@ -23,6 +23,7 @@ const finalSummaryPrompt = ai.definePrompt({
     name: 'summarizeHansardTranscriptPrompt',
     input: { schema: z.object({ combinedSummaries: z.string() }) },
     output: { schema: SummarizeHansardTranscriptOutputSchema },
+    model: 'googleai/gemini-2.5-pro',
     prompt: `You are an expert parliamentary analyst. You have been provided with a series of summaries from different sections of a parliamentary debate. Your task is to synthesize these into a single, robust, accurate, and comprehensive summary of the entire debate. The final summary should be about a page long.
 
 Your response must include three parts:
@@ -71,10 +72,11 @@ const summarizeHansardTranscriptFlow = ai.defineFlow(
         outputSchema: SummarizeHansardTranscriptOutputSchema,
     },
     async (transcriptChunks) => {
-        const chunkSize = 12000; // Approx 3000 tokens, a safe limit for a single section summarization call.
+        // A smaller chunk size to be safe, especially with a more powerful model.
+        const chunkSize = 12000;
         const sectionSummaries: string[] = [];
 
-        // 1. Summarize each intervention, breaking down long ones (Map step)
+        // 1. Summarize each intervention sequentially (Map step)
         for (const chunk of transcriptChunks) {
             const summary = await summarizeRecursively(chunk.text, chunk.speaker, chunkSize);
             sectionSummaries.push(`${chunk.speaker}:\n${summary}`);
