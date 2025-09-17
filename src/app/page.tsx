@@ -93,10 +93,10 @@ export default function Home() {
       const promptPayload = articlesToSummarize.map(({ link, source, headline, publicationDate, body }) => ({ link, source, headline, publicationDate, body: body! }));
 
       // Debugging: Log the proposed prompt payload
-      console.log("===== AI PROMPT PAYLOAD =====");
+      console.log("===== AI PROMPT PAYLOAD (Single Batch Request) =====");
       console.log("This is the JSON data that will be sent to the AI for summarization.");
       console.log(JSON.stringify(promptPayload, null, 2));
-      console.log("===========================");
+      console.log("====================================================");
 
       try {
           const summaries = await summarizeArticlesInBatch(promptPayload);

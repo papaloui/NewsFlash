@@ -1,3 +1,4 @@
+
 'use server';
 
 /**
@@ -44,3 +45,4 @@ const summarizeArticleFlow = ai.defineFlow(
     return output!;
   }
 );
+
