@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { getSectionSummary, getTranscriptSummary } from './actions';
 import { HansardChat } from '@/components/app/hansard-chat';
+import type { TranscriptChunk } from '@/ai/flows/summarize-hansard-transcript';
 
 
 interface InterventionContent {
@@ -84,7 +85,7 @@ export default function HouseOfCommonsPage() {
     return content.filter(c => c.type === 'text').map(c => c.value).join(' ');
   };
 
-  const getFullTranscript = () => {
+  const getFullTranscriptText = () => {
     if (!data) return '';
     return data.interventions.map(i => {
       const speaker = i.speaker || 'Unnamed Speaker';
@@ -95,6 +96,18 @@ export default function HouseOfCommonsPage() {
       if (!text) return '';
       return `${speaker}:\n${text}`;
     }).join('\n\n');
+  }
+
+  const getFullTranscriptChunks = (): TranscriptChunk[] => {
+    if (!data) return [];
+    return data.interventions.map(i => {
+      const speaker = i.speaker || 'Unnamed Speaker';
+      const text = getTextFromContent(i.content);
+      if (i.type === 'OrderOfBusiness' || i.type === 'SubjectOfBusiness') {
+        return { speaker: 'Section Marker', text: `--- ${text} ---` };
+      }
+      return { speaker, text };
+    }).filter(chunk => chunk.text.trim() !== '');
   };
 
   const handleSummarizeSection = async (intervention: Intervention) => {
@@ -116,14 +129,14 @@ export default function HouseOfCommonsPage() {
   }
 
   const handleFullSummary = async () => {
-    const transcript = getFullTranscript();
-    if (!transcript) return;
+    const transcriptChunks = getFullTranscriptChunks();
+    if (transcriptChunks.length === 0) return;
     setIsSummarizingFull(true);
     setFullSummary(null);
     setSummaryError(null);
 
     try {
-      const summaryResult = await getTranscriptSummary(transcript);
+      const summaryResult = await getTranscriptSummary(transcriptChunks);
       setFullSummary(summaryResult);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred.';
@@ -266,7 +279,7 @@ export default function HouseOfCommonsPage() {
         {isSummarizingFull && (
             <div className="mt-6 flex justify-center items-center gap-2 text-muted-foreground">
                 <Loader2 className="h-5 w-5 animate-spin" />
-                <span>Generating full summary... This may take a moment.</span>
+                <span>Generating full summary... This is a slow process designed for overnight batching and may take several minutes.</span>
             </div>
         )}
 
@@ -312,7 +325,7 @@ export default function HouseOfCommonsPage() {
         )}
         
         {fullSummary && data && (
-          <HansardChat transcript={getFullTranscript()} summary={fullSummary.summary} />
+          <HansardChat transcript={getFullTranscriptText()} summary={fullSummary.summary} />
         )}
 
         {isLoading && (
@@ -328,7 +341,7 @@ export default function HouseOfCommonsPage() {
               <AccordionItem value="full-transcript">
                 <AccordionTrigger>View Full Transcript</AccordionTrigger>
                 <AccordionContent>
-                  <pre className="whitespace-pre-wrap font-body text-sm bg-muted p-4 rounded-md max-h-[400px] overflow-auto">{getFullTranscript()}</pre>
+                  <pre className="whitespace-pre-wrap font-body text-sm bg-muted p-4 rounded-md max-h-[400px] overflow-auto">{getFullTranscriptText()}</pre>
                 </AccordionContent>
               </AccordionItem>
             </Accordion>

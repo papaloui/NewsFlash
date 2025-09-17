@@ -1,7 +1,8 @@
+
 'use server';
 
 import { summarizeHansardSection } from "@/ai/flows/summarize-hansard-section";
-import { summarizeHansardTranscript, type SummarizeHansardTranscriptOutput } from "@/ai/flows/summarize-hansard-transcript";
+import { summarizeHansardTranscript, type SummarizeHansardTranscriptOutput, type TranscriptChunk } from "@/ai/flows/summarize-hansard-transcript";
 import { hansardAgent } from "@/ai/flows/hansard-agent";
 
 export async function getSectionSummary(sectionText: string): Promise<string> {
@@ -20,13 +21,12 @@ export async function getSectionSummary(sectionText: string): Promise<string> {
     }
 }
 
-export async function getTranscriptSummary(transcript: string): Promise<SummarizeHansardTranscriptOutput> {
+export async function getTranscriptSummary(transcriptChunks: TranscriptChunk[]): Promise<SummarizeHansardTranscriptOutput> {
     try {
-        if (!transcript || transcript.trim().length < 100) {
+        if (!transcriptChunks || transcriptChunks.length === 0) {
             throw new Error("Not enough content to create a full summary.");
         }
-        // The flow now takes the object { transcript: string }
-        const result = await summarizeHansardTranscript({ transcript });
+        const result = await summarizeHansardTranscript(transcriptChunks);
         return result;
     } catch (error) {
         console.error("Error getting transcript summary:", error);

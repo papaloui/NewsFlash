@@ -1,6 +1,7 @@
+
 'use server';
 /**
- * @fileOverview Summarizes an entire Hansard transcript using a map-reduce approach.
+ * @fileOverview Summarizes an entire Hansard transcript using a map-reduce approach with semantic chunking.
  * 
  * - summarizeHansardTranscript - A function that takes a full transcript and returns a detailed summary.
  * - SummarizeHansardTranscriptInput - The input type for the function.
@@ -11,9 +12,14 @@ import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 import { summarizeHansardSection } from './summarize-hansard-section';
 
-const SummarizeHansardTranscriptInputSchema = z.object({
-    transcript: z.string().describe('The full text content of a Hansard debate, with speakers tagged.'),
+
+export const TranscriptChunkSchema = z.object({
+    speaker: z.string(),
+    text: z.string(),
 });
+export type TranscriptChunk = z.infer<typeof TranscriptChunkSchema>;
+
+const SummarizeHansardTranscriptInputSchema = z.array(TranscriptChunkSchema);
 export type SummarizeHansardTranscriptInput = z.infer<typeof SummarizeHansardTranscriptInputSchema>;
 
 const SummarizeHansardTranscriptOutputSchema = z.object({
@@ -45,6 +51,32 @@ Here are the summaries of the debate sections:
 `,
 });
 
+// Helper function to recursively summarize text, breaking it down if it's too long.
+async function summarizeRecursively(text: string, speaker: string, chunkSize: number): Promise<string> {
+    if (text.length <= chunkSize) {
+        const result = await summarizeHansardSection({ sectionText: `${speaker}: ${text}` });
+        return result.summary;
+    }
+
+    // Text is too long, split it and summarize each part recursively.
+    const subChunks: string[] = [];
+    for (let i = 0; i < text.length; i += chunkSize) {
+        subChunks.push(text.substring(i, i + chunkSize));
+    }
+
+    const subSummaries: string[] = [];
+    for (const subChunk of subChunks) {
+        // Recursive call
+        const subSummary = await summarizeRecursively(subChunk, speaker, chunkSize);
+        subSummaries.push(subSummary);
+    }
+
+    // Combine the summaries of the sub-chunks into a single summary for the original long text.
+    const combinedSubSummaries = subSummaries.join('\n\n');
+    const finalSubSummary = await summarizeHansardSection({ sectionText: `The following are summaries of a long speech by ${speaker}. Please combine them into a single, coherent summary of the entire speech:\n\n${combinedSubSummaries}` });
+    
+    return finalSubSummary.summary;
+}
 
 const summarizeHansardTranscriptFlow = ai.defineFlow(
     {
@@ -52,27 +84,20 @@ const summarizeHansardTranscriptFlow = ai.defineFlow(
         inputSchema: SummarizeHansardTranscriptInputSchema,
         outputSchema: SummarizeHansardTranscriptOutputSchema,
     },
-    async ({ transcript }) => {
-        // 1. Split the transcript into chunks
-        const chunkSize = 12000; // Approx 3000 tokens
-        const chunks: string[] = [];
-        for (let i = 0; i < transcript.length; i += chunkSize) {
-            chunks.push(transcript.substring(i, i + chunkSize));
+    async (transcriptChunks) => {
+        const chunkSize = 12000; // Approx 3000 tokens, a safe limit for a single section summarization call.
+        const sectionSummaries: string[] = [];
+
+        // 1. Summarize each intervention, breaking down long ones (Map step)
+        for (const chunk of transcriptChunks) {
+            const summary = await summarizeRecursively(chunk.text, chunk.speaker, chunkSize);
+            sectionSummaries.push(`${chunk.speaker}:\n${summary}`);
         }
 
-        // 2. Summarize each chunk sequentially to avoid rate limiting (Map step)
-        const sectionSummaries: { summary: string }[] = [];
-        for (const chunk of chunks) {
-            const summary = await summarizeHansardSection({ sectionText: chunk });
-            sectionSummaries.push(summary);
-        }
-
-        // 3. Combine the summaries
-        const combinedSummaries = sectionSummaries
-            .map((s, i) => `Summary of Chunk ${i + 1}:\n${s.summary}`)
-            .join('\n\n---\n\n');
+        // 2. Combine the individual summaries
+        const combinedSummaries = sectionSummaries.join('\n\n---\n\n');
         
-        // 4. Create the final summary from the combined summaries (Reduce step)
+        // 3. Create the final summary from the combined summaries (Reduce step)
         const { output } = await finalSummaryPrompt({ combinedSummaries });
         
         return output!;
