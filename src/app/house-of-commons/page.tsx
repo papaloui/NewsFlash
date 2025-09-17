@@ -10,9 +10,8 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { getSectionSummary, getTranscriptSummary } from './actions';
+import { getTranscriptSummary } from './actions';
 import { HansardChat } from '@/components/app/hansard-chat';
-import type { TranscriptChunk } from '@/lib/schemas';
 
 
 interface InterventionContent {
@@ -104,45 +103,15 @@ export default function HouseOfCommonsPage() {
     }).join('\n\n');
   }
 
-  const getFullTranscriptChunks = (): TranscriptChunk[] => {
-    if (!data) return [];
-    return data.interventions.map(i => {
-      const speaker = i.speaker || 'Unnamed Speaker';
-      const text = getTextFromContent(i.content);
-      if (i.type === 'OrderOfBusiness' || i.type === 'SubjectOfBusiness') {
-        return { speaker: 'Section Marker', text: `--- ${text} ---` };
-      }
-      return { speaker, text };
-    }).filter(chunk => chunk.text.trim() !== '');
-  };
-
-  const handleSummarizeSection = async (intervention: Intervention) => {
-    const sectionId = intervention.id || 'summary';
-    if (!intervention.content) return;
-    
-    setSummarizingId(sectionId);
-    const sectionText = getTextFromContent(intervention.content);
-    
-    try {
-      const summary = await getSectionSummary(sectionText);
-      setSummaries(prev => ({...prev, [sectionId]: summary}));
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred.';
-      setSummaries(prev => ({...prev, [sectionId]: `Error: ${errorMessage}`}));
-    } finally {
-      setSummarizingId(null);
-    }
-  }
-
   const handleFullSummary = async () => {
-    const transcriptChunks = getFullTranscriptChunks();
-    if (transcriptChunks.length === 0) return;
+    const transcriptText = getFullTranscriptText();
+    if (transcriptText.length === 0) return;
     setIsSummarizingFull(true);
     setFullSummary(null);
     setSummaryError(null);
 
     try {
-      const summaryResult = await getTranscriptSummary(transcriptChunks);
+      const summaryResult = await getTranscriptSummary(transcriptText);
       setFullSummary(summaryResult);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred.';
@@ -167,22 +136,9 @@ export default function HouseOfCommonsPage() {
                 <FileTextIcon className="h-5 w-5 text-primary" />
                 {title}
               </span>
-              <Button 
-                size="sm" 
-                variant="outline" 
-                onClick={() => handleSummarizeSection(intervention)}
-                disabled={summarizingId === sectionId}
-              >
-                {summarizingId === sectionId ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Summarize Section'}
-              </Button>
             </CardTitle>
             <Badge variant="secondary" className="w-fit">{intervention.type}</Badge>
           </CardHeader>
-          {summaries[sectionId] && (
-            <CardContent>
-              <p className="text-sm text-muted-foreground italic">{summaries[sectionId]}</p>
-            </CardContent>
-          )}
         </Card>
       );
     }
@@ -285,7 +241,7 @@ export default function HouseOfCommonsPage() {
         {isSummarizingFull && (
             <div className="mt-6 flex justify-center items-center gap-2 text-muted-foreground">
                 <Loader2 className="h-5 w-5 animate-spin" />
-                <span>Generating full summary... This is a slow process designed for overnight batching and may take several minutes.</span>
+                <span>Generating full summary... This may take a minute or more depending on the transcript length.</span>
             </div>
         )}
 
@@ -335,13 +291,12 @@ export default function HouseOfCommonsPage() {
                             </AccordionTrigger>
                             <AccordionContent className="space-y-4">
                                 <div>
-                                    <h4 className="font-semibold text-lg mb-2">Final Prompt to AI</h4>
-                                    <p className="text-xs text-muted-foreground mb-2">This is the combined text of all chunk summaries that was sent to the AI for the final summarization step.</p>
+                                    <h4 className="font-semibold text-lg mb-2">Final Prompt to AI (Full Transcript)</h4>
+                                    <p className="text-xs text-muted-foreground mb-2">The following is the full transcript text sent to the model for summarization.</p>
                                     <pre className="whitespace-pre-wrap font-body text-xs bg-muted p-4 rounded-md max-h-[400px] overflow-auto">{fullSummary.debugInfo.finalPrompt}</pre>
                                 </div>
                                 <div>
-                                    <h4 className="font-semibold text-lg mb-2">Individual Chunk Summaries ({fullSummary.debugInfo.chunkSummaries.length})</h4>
-                                    <p className="text-xs text-muted-foreground mb-2">These are the summaries generated for each individual chunk of text from the transcript.</p>
+                                    <h4 className="font-semibold text-lg mb-2">Debug Information</h4>
                                     <div className="space-y-2 max-h-[600px] overflow-auto pr-2">
                                     {fullSummary.debugInfo.chunkSummaries.map((chunk, index) => (
                                         <div key={index} className="bg-muted/50 p-3 rounded-md">

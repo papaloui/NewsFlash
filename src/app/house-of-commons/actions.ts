@@ -1,12 +1,16 @@
 
 'use server';
 
-import { summarizeHansardSection } from "@/ai/flows/summarize-hansard-section";
 import { summarizeHansardTranscript } from "@/ai/flows/summarize-hansard-transcript";
 import { hansardAgent } from "@/ai/flows/hansard-agent";
-import type { TranscriptChunk, SummarizeHansardTranscriptOutput } from "@/lib/schemas";
+import type { SummarizeHansardTranscriptOutput } from "@/lib/schemas";
 import { logDebug } from "@/lib/logger";
 
+// This function is no longer needed as we are not summarizing sections individually.
+// It can be removed or left here for potential future use.
+// For now we will comment it out to avoid confusion.
+/*
+import { summarizeHansardSection } from "@/ai/flows/summarize-hansard-section";
 export async function getSectionSummary(sectionText: string): Promise<string> {
     try {
         if (!sectionText || sectionText.trim().length < 50) {
@@ -22,15 +26,16 @@ export async function getSectionSummary(sectionText: string): Promise<string> {
         return "An unknown error occurred while summarizing the section.";
     }
 }
+*/
 
-export async function getTranscriptSummary(transcriptChunks: TranscriptChunk[]): Promise<SummarizeHansardTranscriptOutput> {
+export async function getTranscriptSummary(transcript: string): Promise<SummarizeHansardTranscriptOutput> {
     logDebug('getTranscriptSummary server action invoked.');
     try {
-        if (!transcriptChunks || transcriptChunks.length === 0) {
+        if (!transcript || transcript.length === 0) {
             throw new Error("Not enough content to create a full summary.");
         }
         // Return the full result, which includes debugInfo
-        const result = await summarizeHansardTranscript(transcriptChunks);
+        const result = await summarizeHansardTranscript({ transcript });
         logDebug('getTranscriptSummary server action completed successfully.');
         return result;
     } catch (error) {

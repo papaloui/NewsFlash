@@ -1,7 +1,7 @@
 
 'use server';
 /**
- * @fileOverview Summarizes an entire Hansard transcript using a map-reduce approach with semantic chunking.
+ * @fileOverview Summarizes an entire Hansard transcript using a single request to a large-context model.
  * 
  * - summarizeHansardTranscript - A function that takes a full transcript and returns a detailed summary.
  * - SummarizeHansardTranscriptInput - The input type for the function.
@@ -10,66 +10,41 @@
 
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
-import { summarizeHansardSection } from './summarize-hansard-section';
-import type { SummarizeHansardTranscriptInput, SummarizeHansardTranscriptOutput, TranscriptChunk } from '@/lib/schemas';
-import { SummarizeHansardTranscriptInputSchema, SummarizeHansardTranscriptOutputSchema } from '@/lib/schemas';
+import type { SummarizeHansardTranscriptOutput } from '@/lib/schemas';
+import { SummarizeHansardTranscriptOutputSchema } from '@/lib/schemas';
 import { logDebug } from '@/lib/logger';
+
+const SummarizeHansardTranscriptInputSchema = z.object({
+    transcript: z.string().describe('The full text content of a Hansard debate, with speakers tagged.'),
+});
+export type SummarizeHansardTranscriptInput = z.infer<typeof SummarizeHansardTranscriptInputSchema>;
 
 
 export async function summarizeHansardTranscript(input: SummarizeHansardTranscriptInput): Promise<SummarizeHansardTranscriptOutput> {
     return summarizeHansardTranscriptFlow(input);
 }
 
-const finalSummaryPrompt = ai.definePrompt({
+const summaryPrompt = ai.definePrompt({
     name: 'summarizeHansardTranscriptPrompt',
-    input: { schema: z.object({ combinedSummaries: z.string() }) },
-    output: { schema: SummarizeHansardTranscriptOutputSchema.pick({ summary: true, topics: true, billsReferenced: true }) },
+    input: { schema: SummarizeHansardTranscriptInputSchema },
+    output: { schema: SummarizeHansardTranscriptOutputSchema },
     model: 'googleai/gemini-2.5-pro',
-    prompt: `You are an expert parliamentary analyst. You have been provided with a series of summaries from different sections of a parliamentary debate. Your task is to synthesize these into a single, robust, accurate, and comprehensive summary of the entire debate. The final summary should be about a page long.
+    config: {
+        maxOutputTokens: 8192, // Allow for a long, detailed summary
+    },
+    prompt: `You are an expert parliamentary analyst. You have been provided with the full transcript of a parliamentary debate. Your task is to synthesize this into a single, robust, accurate, and comprehensive summary. The final summary should be about a page long.
 
 Your response must include three parts:
 1.  A 'summary' field: This should be a detailed, page-long summary that identifies the main bills discussed, outlines key arguments from main speakers, mentions significant events, and maintains a neutral tone, capturing the overall flow and conclusion.
-2.  A 'topics' field: This should be an array of strings, where each string is a distinct topic or theme discussed during the debate, based on the provided summaries.
-3.  A 'billsReferenced' field: This should be an array of strings, where each string is the name or number of a specific bill mentioned in the transcript summaries.
+2.  A 'topics' field: This should be an array of strings, where each string is a distinct topic or theme discussed during the debate.
+3.  A 'billsReferenced' field: This should be an array of strings, where each string is the name or number of a specific bill mentioned in the transcript.
 
-Here are the summaries of the debate sections:
+Here is the full transcript of the debate:
 ---
-{{{combinedSummaries}}}
+{{{transcript}}}
 ---
 `,
 });
-
-// Helper function to recursively summarize text, breaking it down if it's too long.
-async function summarizeRecursively(text: string, speaker: string, chunkSize: number): Promise<string> {
-    if (text.length <= chunkSize) {
-        logDebug(`Summarizing short text for speaker: ${speaker}. Length: ${text.length}`);
-        const result = await summarizeHansardSection({ sectionText: `${speaker}: ${text}` });
-        logDebug(`Finished summarizing short text for speaker: ${speaker}.`);
-        return result.summary;
-    }
-
-    logDebug(`Text for speaker ${speaker} is too long (${text.length} > ${chunkSize}). Splitting into sub-chunks.`);
-    const subChunks: string[] = [];
-    for (let i = 0; i < text.length; i += chunkSize) {
-        subChunks.push(text.substring(i, i + chunkSize));
-    }
-    logDebug(`Split into ${subChunks.length} sub-chunks.`);
-
-    const subSummaries: string[] = [];
-    for (const subChunk of subChunks) {
-        logDebug(`Summarizing sub-chunk for speaker ${speaker}.`);
-        const subSummary = await summarizeHansardSection({ sectionText: `${speaker}: ${subChunk}` });
-        subSummaries.push(subSummary.summary);
-        logDebug(`Finished summarizing sub-chunk.`);
-    }
-
-    logDebug(`Combining ${subSummaries.length} sub-summaries for speaker ${speaker}.`);
-    const combinedSubSummaries = subSummaries.join('\n\n');
-    const finalSubSummary = await summarizeHansardSection({ sectionText: `The following are summaries of a long speech by ${speaker}. Please combine them into a single, coherent summary of the entire speech:\n\n${combinedSubSummaries}` });
-    logDebug(`Finished combining sub-summaries for speaker ${speaker}.`);
-    
-    return finalSubSummary.summary;
-}
 
 const summarizeHansardTranscriptFlow = ai.defineFlow(
     {
@@ -77,41 +52,19 @@ const summarizeHansardTranscriptFlow = ai.defineFlow(
         inputSchema: SummarizeHansardTranscriptInputSchema,
         outputSchema: SummarizeHansardTranscriptOutputSchema,
     },
-    async (transcriptChunks) => {
-        logDebug(`Starting summarizeHansardTranscriptFlow with ${transcriptChunks.length} chunks.`);
-        // A smaller chunk size to be safe, especially with a more powerful model.
-        const chunkSize = 3000;
-        const sectionSummaries: string[] = [];
-
-        // 1. Summarize each intervention sequentially (Map step)
-        for (let i = 0; i < transcriptChunks.length; i++) {
-            const chunk = transcriptChunks[i];
-            logDebug(`Processing chunk ${i + 1}/${transcriptChunks.length} from speaker: ${chunk.speaker}`);
-            const summary = await summarizeRecursively(chunk.text, chunk.speaker, chunkSize);
-            sectionSummaries.push(`${chunk.speaker}:\n${summary}`);
-            logDebug(`Finished processing chunk ${i + 1}/${transcriptChunks.length}.`);
-
-            // Introduce a delay to respect the API rate limit (e.g., Gemini Pro free tier is 2 RPM)
-            // Wait for 30 seconds to be safe.
-            if (i < transcriptChunks.length - 1) {
-                logDebug(`Waiting for 30 seconds to respect API rate limit...`);
-                await new Promise(resolve => setTimeout(resolve, 30000));
-            }
-        }
-
-        // 2. Combine the individual summaries
-        const combinedSummaries = sectionSummaries.join('\n\n---\n\n');
-        logDebug(`All chunks summarized. Calling final prompt with combined length: ${combinedSummaries.length}`);
+    async (input) => {
+        logDebug(`Starting summarizeHansardTranscriptFlow with a single transcript of length: ${input.transcript.length}`);
         
-        // 3. Create the final summary from the combined summaries (Reduce step)
-        const { output } = await finalSummaryPrompt({ combinedSummaries });
+        const { output } = await summaryPrompt(input);
+        
         logDebug('Final summary received from AI.');
         
+        // The debug info is less critical now, but we can still return the prompt length.
         return {
             ...output!,
             debugInfo: {
-                chunkSummaries: sectionSummaries,
-                finalPrompt: combinedSummaries,
+                chunkSummaries: [`Transcript length: ${input.transcript.length}`],
+                finalPrompt: input.transcript,
             },
         };
     }
