@@ -60,12 +60,12 @@ const summarizeHansardTranscriptFlow = ai.defineFlow(
             chunks.push(transcript.substring(i, i + chunkSize));
         }
 
-        // 2. Summarize each chunk in parallel (Map step)
-        const summaryPromises = chunks.map(chunk => 
-            summarizeHansardSection({ sectionText: chunk })
-        );
-        
-        const sectionSummaries = await Promise.all(summaryPromises);
+        // 2. Summarize each chunk sequentially to avoid rate limiting (Map step)
+        const sectionSummaries: { summary: string }[] = [];
+        for (const chunk of chunks) {
+            const summary = await summarizeHansardSection({ sectionText: chunk });
+            sectionSummaries.push(summary);
+        }
 
         // 3. Combine the summaries
         const combinedSummaries = sectionSummaries
