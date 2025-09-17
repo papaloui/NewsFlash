@@ -11,8 +11,9 @@
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 import { summarizeHansardSection } from './summarize-hansard-section';
-import type { SummarizeHansardTranscriptInput, SummarizeHansardTranscriptOutput, TranscriptChunk } from '@/lib/schemas';
+import type { SummarizeHansardTranscriptInput, SummarizeHansardTranscriptOutput } from '@/lib/schemas';
 import { SummarizeHansardTranscriptInputSchema, SummarizeHansardTranscriptOutputSchema } from '@/lib/schemas';
+import { logDebug } from '@/lib/logger';
 
 
 export async function summarizeHansardTranscript(input: SummarizeHansardTranscriptInput): Promise<SummarizeHansardTranscriptOutput> {
@@ -41,26 +42,32 @@ Here are the summaries of the debate sections:
 // Helper function to recursively summarize text, breaking it down if it's too long.
 async function summarizeRecursively(text: string, speaker: string, chunkSize: number): Promise<string> {
     if (text.length <= chunkSize) {
+        logDebug(`Summarizing short text for speaker: ${speaker}. Length: ${text.length}`);
         const result = await summarizeHansardSection({ sectionText: `${speaker}: ${text}` });
+        logDebug(`Finished summarizing short text for speaker: ${speaker}.`);
         return result.summary;
     }
 
-    // Text is too long, split it and summarize each part. This is no longer recursive.
+    logDebug(`Text for speaker ${speaker} is too long (${text.length} > ${chunkSize}). Splitting into sub-chunks.`);
     const subChunks: string[] = [];
     for (let i = 0; i < text.length; i += chunkSize) {
         subChunks.push(text.substring(i, i + chunkSize));
     }
+    logDebug(`Split into ${subChunks.length} sub-chunks.`);
 
     const subSummaries: string[] = [];
-    for (const subChunk of subChunks) {
-        // Directly call the summarization flow for each piece.
+    for (let i = 0; i < subChunks.length; i++) {
+        const subChunk = subChunks[i];
+        logDebug(`Summarizing sub-chunk ${i + 1}/${subChunks.length} for speaker ${speaker}.`);
         const subSummary = await summarizeHansardSection({ sectionText: `${speaker}: ${subChunk}` });
         subSummaries.push(subSummary.summary);
+        logDebug(`Finished summarizing sub-chunk ${i + 1}/${subChunks.length}.`);
     }
 
-    // Combine the summaries of the sub-chunks into a single summary for the original long text.
+    logDebug(`Combining ${subSummaries.length} sub-summaries for speaker ${speaker}.`);
     const combinedSubSummaries = subSummaries.join('\n\n');
     const finalSubSummary = await summarizeHansardSection({ sectionText: `The following are summaries of a long speech by ${speaker}. Please combine them into a single, coherent summary of the entire speech:\n\n${combinedSubSummaries}` });
+    logDebug(`Finished combining sub-summaries for speaker ${speaker}.`);
     
     return finalSubSummary.summary;
 }
@@ -72,21 +79,27 @@ const summarizeHansardTranscriptFlow = ai.defineFlow(
         outputSchema: SummarizeHansardTranscriptOutputSchema,
     },
     async (transcriptChunks) => {
+        logDebug(`Starting summarizeHansardTranscriptFlow with ${transcriptChunks.length} chunks.`);
         // A smaller chunk size to be safe, especially with a more powerful model.
         const chunkSize = 3000;
         const sectionSummaries: string[] = [];
 
         // 1. Summarize each intervention sequentially (Map step)
-        for (const chunk of transcriptChunks) {
+        for (let i = 0; i < transcriptChunks.length; i++) {
+            const chunk = transcriptChunks[i];
+            logDebug(`Processing chunk ${i + 1}/${transcriptChunks.length} from speaker: ${chunk.speaker}`);
             const summary = await summarizeRecursively(chunk.text, chunk.speaker, chunkSize);
             sectionSummaries.push(`${chunk.speaker}:\n${summary}`);
+            logDebug(`Finished processing chunk ${i + 1}/${transcriptChunks.length}.`);
         }
 
         // 2. Combine the individual summaries
         const combinedSummaries = sectionSummaries.join('\n\n---\n\n');
+        logDebug(`All chunks summarized. Calling final prompt with combined length: ${combinedSummaries.length}`);
         
         // 3. Create the final summary from the combined summaries (Reduce step)
         const { output } = await finalSummaryPrompt({ combinedSummaries });
+        logDebug('Final summary received from AI.');
         
         return {
             ...output!,
@@ -97,4 +110,3 @@ const summarizeHansardTranscriptFlow = ai.defineFlow(
         };
     }
 );
-

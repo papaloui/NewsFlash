@@ -5,6 +5,7 @@ import { summarizeHansardSection } from "@/ai/flows/summarize-hansard-section";
 import { summarizeHansardTranscript } from "@/ai/flows/summarize-hansard-transcript";
 import { hansardAgent } from "@/ai/flows/hansard-agent";
 import type { TranscriptChunk, SummarizeHansardTranscriptOutput } from "@/lib/schemas";
+import { logDebug } from "@/lib/logger";
 
 export async function getSectionSummary(sectionText: string): Promise<string> {
     try {
@@ -23,15 +24,18 @@ export async function getSectionSummary(sectionText: string): Promise<string> {
 }
 
 export async function getTranscriptSummary(transcriptChunks: TranscriptChunk[]): Promise<SummarizeHansardTranscriptOutput> {
+    logDebug('getTranscriptSummary server action invoked.');
     try {
         if (!transcriptChunks || transcriptChunks.length === 0) {
             throw new Error("Not enough content to create a full summary.");
         }
         // Return the full result, which includes debugInfo
         const result = await summarizeHansardTranscript(transcriptChunks);
+        logDebug('getTranscriptSummary server action completed successfully.');
         return result;
     } catch (error) {
         console.error("Error getting transcript summary:", error);
+        logDebug('getTranscriptSummary server action failed.', error);
         if (error instanceof Error) {
             throw new Error(`Error getting transcript summary: ${error.message}`);
         }
