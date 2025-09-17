@@ -81,14 +81,17 @@ export default function Home() {
   }, [collections]);
 
   const handleSummarizeDigest = async (articlesToSummarize: ArticleWithStatus[]) => {
-      const headlines = articlesToSummarize.map(a => a.headline);
-      if (headlines.length === 0) return;
+      const articlesForDigest = articlesToSummarize
+        .filter(a => a.body) // Only include articles that have a body
+        .map(a => ({ headline: a.headline, body: a.body! }));
+
+      if (articlesForDigest.length === 0) return;
 
       setIsSummarizing(true);
       setDigest(null);
       
       try {
-          const result = await summarizeHeadlinesDigest(headlines);
+          const result = await summarizeHeadlinesDigest(articlesForDigest);
           setDigest(result.digest);
       } catch (error) {
           console.error(error);
@@ -132,27 +135,26 @@ export default function Home() {
 
         const fetchedArticles: Article[] = await res.json();
         
-        const articlesToDisplay = fetchedArticles.slice(0, 5);
+        const articlesToDisplay = fetchedArticles.slice(0, 15);
         setArticles(articlesToDisplay);
         
-        // Start digest summarization
-        if(articlesToDisplay.length > 0) {
-            handleSummarizeDigest(articlesToDisplay);
-        }
-
         // Fetch bodies for the articles in parallel
-        await Promise.all(articlesToDisplay.map(async (article) => {
+        const articlesWithBodies = await Promise.all(articlesToDisplay.map(async (article) => {
             try {
               const body = await getArticleContent(article.link);
-              const articleWithBody = { ...article, body };
-              // Update state for individual article as it's fetched
-              setArticles(prev => prev.map(a => a.link === article.link ? articleWithBody : a));
+              return { ...article, body };
             } catch (error) {
                console.error(`Failed to fetch content for ${article.link}`, error);
-               const articleWithError = { ...article, body: "Could not load article content." };
-                setArticles(prev => prev.map(a => a.link === article.link ? articleWithError : a));
+               return { ...article, body: "Could not load article content." };
             }
         }));
+
+        setArticles(articlesWithBodies);
+
+        // Start digest summarization now that all bodies are fetched
+        if(articlesWithBodies.length > 0) {
+            handleSummarizeDigest(articlesWithBodies);
+        }
 
     } catch (error) {
         console.error(error);
