@@ -27,6 +27,7 @@ export async function getTranscriptSummary(transcriptChunks: TranscriptChunk[]):
         if (!transcriptChunks || transcriptChunks.length === 0) {
             throw new Error("Not enough content to create a full summary.");
         }
+        // Return the full result, which includes debugInfo
         const result = await summarizeHansardTranscript(transcriptChunks);
         return result;
     } catch (error) {
