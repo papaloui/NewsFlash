@@ -73,7 +73,7 @@ const summarizeHansardTranscriptFlow = ai.defineFlow(
     },
     async (transcriptChunks) => {
         // A smaller chunk size to be safe, especially with a more powerful model.
-        const chunkSize = 12000;
+        const chunkSize = 3000;
         const sectionSummaries: string[] = [];
 
         // 1. Summarize each intervention sequentially (Map step)
