@@ -45,7 +45,7 @@ async function summarizeRecursively(text: string, speaker: string, chunkSize: nu
         return result.summary;
     }
 
-    // Text is too long, split it and summarize each part recursively.
+    // Text is too long, split it and summarize each part. This is no longer recursive.
     const subChunks: string[] = [];
     for (let i = 0; i < text.length; i += chunkSize) {
         subChunks.push(text.substring(i, i + chunkSize));
@@ -53,9 +53,9 @@ async function summarizeRecursively(text: string, speaker: string, chunkSize: nu
 
     const subSummaries: string[] = [];
     for (const subChunk of subChunks) {
-        // Recursive call
-        const subSummary = await summarizeRecursively(subChunk, speaker, chunkSize);
-        subSummaries.push(subSummary);
+        // Directly call the summarization flow for each piece.
+        const subSummary = await summarizeHansardSection({ sectionText: `${speaker}: ${subChunk}` });
+        subSummaries.push(subSummary.summary);
     }
 
     // Combine the summaries of the sub-chunks into a single summary for the original long text.
