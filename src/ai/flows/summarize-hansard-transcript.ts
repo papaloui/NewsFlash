@@ -28,7 +28,6 @@ const summaryPrompt = ai.definePrompt({
     name: 'summarizeHansardTranscriptPrompt',
     input: { schema: SummarizeHansardTranscriptInputSchema },
     output: { schema: SummarizeHansardTranscriptOutputSchema },
-    model: 'googleai/gemini-2.5-pro',
     config: {
         maxOutputTokens: 8192, // Allow for a long, detailed summary
     },
@@ -59,12 +58,11 @@ const summarizeHansardTranscriptFlow = ai.defineFlow(
         
         logDebug('Final summary received from AI.');
         
-        // The debug info is less critical now, but we can still return the prompt length.
         return {
             ...output!,
             debugInfo: {
                 chunkSummaries: [`Transcript length: ${input.transcript.length}`],
-                finalPrompt: input.transcript,
+                finalPrompt: `(Prompt sent to AI):\n\n${summaryPrompt.prompt.substring(0, 500)}...[TRUNCATED]...\n\n(Transcript passed as input):\n\n${input.transcript}`,
             },
         };
     }
