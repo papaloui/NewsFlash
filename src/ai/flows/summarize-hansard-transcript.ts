@@ -24,14 +24,7 @@ export async function summarizeHansardTranscript(input: SummarizeHansardTranscri
     return summarizeHansardTranscriptFlow(input);
 }
 
-const summaryPrompt = ai.definePrompt({
-    name: 'summarizeHansardTranscriptPrompt',
-    input: { schema: SummarizeHansardTranscriptInputSchema },
-    output: { schema: SummarizeHansardTranscriptOutputSchema },
-    config: {
-        maxOutputTokens: 8192, // Allow for a long, detailed summary
-    },
-    prompt: `You are an expert parliamentary analyst. You have been provided with the full transcript of a parliamentary debate. Your task is to synthesize this into a single, robust, accurate, and comprehensive summary. The final summary should be about a page long.
+const promptText = `You are an expert parliamentary analyst. You have been provided with the full transcript of a parliamentary debate. Your task is to synthesize this into a single, robust, accurate, and comprehensive summary. The final summary should be about a page long.
 
 Your response must include three parts:
 1.  A 'summary' field: This should be a detailed, page-long summary that identifies the main bills discussed, outlines key arguments from main speakers, mentions significant events, and maintains a neutral tone, capturing the overall flow and conclusion.
@@ -42,7 +35,16 @@ Here is the full transcript of the debate:
 ---
 {{{transcript}}}
 ---
-`,
+`;
+
+const summaryPrompt = ai.definePrompt({
+    name: 'summarizeHansardTranscriptPrompt',
+    input: { schema: SummarizeHansardTranscriptInputSchema },
+    output: { schema: SummarizeHansardTranscriptOutputSchema },
+    config: {
+        maxOutputTokens: 8192, // Allow for a long, detailed summary
+    },
+    prompt: promptText,
 });
 
 const summarizeHansardTranscriptFlow = ai.defineFlow(
@@ -62,7 +64,7 @@ const summarizeHansardTranscriptFlow = ai.defineFlow(
             ...output!,
             debugInfo: {
                 chunkSummaries: [`Transcript length: ${input.transcript.length}`],
-                finalPrompt: `(Prompt sent to AI):\n\n${summaryPrompt.prompt.substring(0, 500)}...[TRUNCATED]...\n\n(Transcript passed as input):\n\n${input.transcript}`,
+                finalPrompt: `(Prompt sent to AI):\n\n${promptText.substring(0, 500)}...[TRUNCATED]...\n\n(Transcript passed as input):\n\n${input.transcript}`,
             },
         };
     }
