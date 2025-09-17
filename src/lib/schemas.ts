@@ -1,3 +1,4 @@
+
 import { z } from 'zod';
 
 export const SearchNewsAndRankInputSchema = z.object({
@@ -49,9 +50,16 @@ export type TranscriptChunk = z.infer<typeof TranscriptChunkSchema>;
 export const SummarizeHansardTranscriptInputSchema = z.array(TranscriptChunkSchema);
 export type SummarizeHansardTranscriptInput = z.infer<typeof SummarizeHansardTranscriptInputSchema>;
 
+const DebugInfoSchema = z.object({
+    chunkSummaries: z.array(z.string()).describe('An array of summaries for each chunk.'),
+    finalPrompt: z.string().describe('The final combined prompt sent to the model.'),
+});
+
 export const SummarizeHansardTranscriptOutputSchema = z.object({
     summary: z.string().describe('A detailed, page-long summary of the provided Hansard transcript.'),
     topics: z.array(z.string()).describe('A list of the main topics discussed in the debate.'),
     billsReferenced: z.array(z.string()).describe('A list of all bills referenced in the debate transcript.'),
+    debugInfo: DebugInfoSchema.optional(),
 });
 export type SummarizeHansardTranscriptOutput = z.infer<typeof SummarizeHansardTranscriptOutputSchema>;
+

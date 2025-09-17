@@ -22,7 +22,7 @@ export async function summarizeHansardTranscript(input: SummarizeHansardTranscri
 const finalSummaryPrompt = ai.definePrompt({
     name: 'summarizeHansardTranscriptPrompt',
     input: { schema: z.object({ combinedSummaries: z.string() }) },
-    output: { schema: SummarizeHansardTranscriptOutputSchema },
+    output: { schema: SummarizeHansardTranscriptOutputSchema.pick({ summary: true, topics: true, billsReferenced: true }) },
     model: 'googleai/gemini-2.5-pro',
     prompt: `You are an expert parliamentary analyst. You have been provided with a series of summaries from different sections of a parliamentary debate. Your task is to synthesize these into a single, robust, accurate, and comprehensive summary of the entire debate. The final summary should be about a page long.
 
@@ -88,6 +88,13 @@ const summarizeHansardTranscriptFlow = ai.defineFlow(
         // 3. Create the final summary from the combined summaries (Reduce step)
         const { output } = await finalSummaryPrompt({ combinedSummaries });
         
-        return output!;
+        return {
+            ...output!,
+            debugInfo: {
+                chunkSummaries: sectionSummaries,
+                finalPrompt: combinedSummaries,
+            },
+        };
     }
 );
+

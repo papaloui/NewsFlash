@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { Header } from '@/components/app/header';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
-import { Landmark, Loader2, Search, BookOpen, Clock, Languages, User, FileText as FileTextIcon, ExternalLink, ScrollText } from 'lucide-react';
+import { Landmark, Loader2, Search, BookOpen, Clock, Languages, User, FileText as FileTextIcon, ExternalLink, ScrollText, Bug } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -32,10 +32,16 @@ interface HansardData {
   interventions: Intervention[];
 }
 
+interface DebugInfo {
+    chunkSummaries: string[];
+    finalPrompt: string;
+}
+
 interface FullSummary {
   summary: string;
   topics: string[];
   billsReferenced: string[];
+  debugInfo?: DebugInfo;
 }
 
 
@@ -324,6 +330,34 @@ export default function HouseOfCommonsPage() {
             </Card>
         )}
         
+        {fullSummary?.debugInfo && (
+            <Accordion type="single" collapsible className="w-full mt-6">
+              <AccordionItem value="debug-info">
+                <AccordionTrigger>
+                    <span className="flex items-center gap-2"><Bug className="h-4 w-4" /> Summarization Debugger</span>
+                </AccordionTrigger>
+                <AccordionContent className="space-y-4">
+                    <div>
+                        <h4 className="font-semibold text-lg mb-2">Final Prompt to AI</h4>
+                        <p className="text-xs text-muted-foreground mb-2">This is the combined text of all chunk summaries that was sent to the AI for the final summarization step.</p>
+                        <pre className="whitespace-pre-wrap font-body text-xs bg-muted p-4 rounded-md max-h-[400px] overflow-auto">{fullSummary.debugInfo.finalPrompt}</pre>
+                    </div>
+                     <div>
+                        <h4 className="font-semibold text-lg mb-2">Individual Chunk Summaries ({fullSummary.debugInfo.chunkSummaries.length})</h4>
+                         <p className="text-xs text-muted-foreground mb-2">These are the summaries generated for each individual chunk of text from the transcript.</p>
+                        <div className="space-y-2 max-h-[600px] overflow-auto pr-2">
+                        {fullSummary.debugInfo.chunkSummaries.map((chunk, index) => (
+                            <div key={index} className="bg-muted/50 p-3 rounded-md">
+                                <p className="text-sm whitespace-pre-wrap font-mono">{chunk}</p>
+                            </div>
+                        ))}
+                        </div>
+                    </div>
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
+        )}
+
         {fullSummary && data && (
           <HansardChat transcript={getFullTranscriptText()} summary={fullSummary.summary} />
         )}
@@ -369,3 +403,4 @@ export default function HouseOfCommonsPage() {
     </div>
   );
 }
+
