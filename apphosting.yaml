@@ -5,3 +5,6 @@ runConfig:
   # Increase this value if you'd like to automatically spin up
   # more instances in response to increased traffic.
   maxInstances: 1
+  # Set the request timeout to 10 minutes (600 seconds) for long-running
+  # server actions, like AI summarization.
+  timeoutSeconds: 600
