@@ -1,14 +1,12 @@
 
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Calendar, Globe, ExternalLink, Loader2, BookOpen, Sparkles } from "lucide-react";
+import { Calendar, Globe, ExternalLink, Loader2, BookOpen } from "lucide-react";
 import type { Article } from "@/lib/types";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "../ui/accordion";
 
 type ArticleWithStatus = Article & { 
   body?: string;
-  aiSummary?: string;
-  isSummarizing?: boolean;
 };
 
 
@@ -37,23 +35,7 @@ export function ArticleListItem({ article }: ArticleListItemProps) {
           </div>
         </div>
         
-        <div className="pt-3 border-t">
-          {article.isSummarizing && (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              <span>Generating summary...</span>
-            </div>
-          )}
-          {article.aiSummary && (
-             <div className="space-y-2">
-                <h3 className="font-semibold text-sm flex items-center gap-2"><Sparkles className="h-4 w-4 text-primary" /> AI Summary</h3>
-                <p className="text-sm text-muted-foreground">{article.aiSummary}</p>
-             </div>
-          )}
-           {!article.isSummarizing && !article.aiSummary && article.body && article.body.length > 100 && (
-              <p className="text-sm text-red-500">Could not generate a summary for this article.</p>
-           )}
-        </div>
+        <p className="text-sm text-muted-foreground pt-3 border-t">{article.summary}</p>
 
 
         <Accordion type="single" collapsible>

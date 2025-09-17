@@ -12,6 +12,8 @@ function ListItemSkeleton() {
                     <Skeleton className="h-4 w-20" />
                 </div>
             </div>
+             <Skeleton className="h-4 w-full" />
+             <Skeleton className="h-4 w-5/6" />
             <div className="flex justify-end">
                 <Skeleton className="h-9 w-24" />
             </div>
