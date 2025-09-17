@@ -11,7 +11,7 @@
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 import { summarizeHansardSection } from './summarize-hansard-section';
-import type { SummarizeHansardTranscriptInput, SummarizeHansardTranscriptOutput } from '@/lib/schemas';
+import type { SummarizeHansardTranscriptInput, SummarizeHansardTranscriptOutput, TranscriptChunk } from '@/lib/schemas';
 import { SummarizeHansardTranscriptInputSchema, SummarizeHansardTranscriptOutputSchema } from '@/lib/schemas';
 import { logDebug } from '@/lib/logger';
 
@@ -56,12 +56,11 @@ async function summarizeRecursively(text: string, speaker: string, chunkSize: nu
     logDebug(`Split into ${subChunks.length} sub-chunks.`);
 
     const subSummaries: string[] = [];
-    for (let i = 0; i < subChunks.length; i++) {
-        const subChunk = subChunks[i];
-        logDebug(`Summarizing sub-chunk ${i + 1}/${subChunks.length} for speaker ${speaker}.`);
+    for (const subChunk of subChunks) {
+        logDebug(`Summarizing sub-chunk for speaker ${speaker}.`);
         const subSummary = await summarizeHansardSection({ sectionText: `${speaker}: ${subChunk}` });
         subSummaries.push(subSummary.summary);
-        logDebug(`Finished summarizing sub-chunk ${i + 1}/${subChunks.length}.`);
+        logDebug(`Finished summarizing sub-chunk.`);
     }
 
     logDebug(`Combining ${subSummaries.length} sub-summaries for speaker ${speaker}.`);
@@ -91,6 +90,13 @@ const summarizeHansardTranscriptFlow = ai.defineFlow(
             const summary = await summarizeRecursively(chunk.text, chunk.speaker, chunkSize);
             sectionSummaries.push(`${chunk.speaker}:\n${summary}`);
             logDebug(`Finished processing chunk ${i + 1}/${transcriptChunks.length}.`);
+
+            // Introduce a delay to respect the API rate limit (e.g., Gemini Pro free tier is 2 RPM)
+            // Wait for 30 seconds to be safe.
+            if (i < transcriptChunks.length - 1) {
+                logDebug(`Waiting for 30 seconds to respect API rate limit...`);
+                await new Promise(resolve => setTimeout(resolve, 30000));
+            }
         }
 
         // 2. Combine the individual summaries
