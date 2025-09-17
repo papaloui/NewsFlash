@@ -1,3 +1,4 @@
+
 export interface Article {
   headline: string;
   summary: string;
@@ -8,4 +9,10 @@ export interface Article {
 
 export interface RankedArticle extends Article {
   relevanceScore: number;
+}
+
+export interface FeedCollection {
+  id: string;
+  name: string;
+  feeds: string[];
 }

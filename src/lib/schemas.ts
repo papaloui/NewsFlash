@@ -1,6 +1,8 @@
 
 import { z } from 'zod';
 
+// This file is now mostly unused but kept for future AI feature re-integration.
+
 export const SearchNewsAndRankInputSchema = z.object({
   query: z.string().describe('The search query for news articles.'),
 });
@@ -18,7 +20,6 @@ export const SearchNewsAndRankOutputSchema = z.array(
 ).describe('An array of ranked articles with relevance scores.');
 export type SearchNewsAndRankOutput = z.infer<typeof SearchNewsAndRankOutputSchema>;
 
-export type ArticleWithSummary = SearchNewsAndRankOutput[0] & { fullSummary?: string; isSummarizing?: boolean };
 
 export const NewsAgentInputSchema = z.object({
   query: z.string().describe('The user\'s request or question.'),
@@ -63,3 +64,5 @@ export const SummarizeHansardTranscriptOutputSchema = z.object({
 });
 export type SummarizeHansardTranscriptOutput = z.infer<typeof SummarizeHansardTranscriptOutputSchema>;
 
+// The ArticleWithSummary type from previous work is no longer relevant for this flow.
+// We will use the types from lib/types.ts

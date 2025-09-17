@@ -5,19 +5,20 @@ import { extractArticleContent } from '@/lib/content-extractor';
 
 export async function getArticleContent(articleLink: string): Promise<string> {
     try {
+        // Some sites block requests without a user agent.
         const headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
         };
 
-        const response = await fetch(articleLink, { headers });
+        const response = await fetch(articleLink, { headers, redirect: 'follow' });
 
         if (!response.ok) throw new Error(`Failed to fetch article content (status: ${response.status})`);
         
         const html = await response.text();
         const content = extractArticleContent(html, articleLink);
 
-        if (content.length === 0) {
-            return "Could not extract any article content. The page might be empty or require JavaScript.";
+        if (!content || content.length < 100) { // Check if content is too short
+            return "Could not extract meaningful article content. The page might be a summary, video, or require JavaScript.";
         }
 
         return content;
