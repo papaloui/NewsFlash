@@ -1,7 +1,7 @@
 
 export interface Article {
   headline: string;
-  summary: string;
+  summary: string; // Original summary from RSS feed
   link: string;
   source: string;
   publicationDate: string;

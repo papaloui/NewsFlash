@@ -1,16 +1,12 @@
 
 import { ArticleListItem } from "./article-list-item";
-import type { Article } from "@/lib/types";
-
-// The body is now potentially part of the Article object from the start
-type ArticleWithContent = Article & { body?: string };
+import type { ArticleWithStatus } from "@/app/page";
 
 interface NewsBoardProps {
-  articles: ArticleWithContent[];
-  onSummarize: (link: string) => void;
+  articles: ArticleWithStatus[];
 }
 
-export function NewsBoard({ articles, onSummarize }: NewsBoardProps) {
+export function NewsBoard({ articles }: NewsBoardProps) {
   if (articles.length === 0) {
     return (
       <div className="text-center py-16 border-2 border-dashed rounded-lg">
@@ -23,7 +19,7 @@ export function NewsBoard({ articles, onSummarize }: NewsBoardProps) {
   return (
     <div className="space-y-4">
       {articles.map((article) => (
-        <ArticleListItem key={article.link} article={article} onSummarize={onSummarize} />
+        <ArticleListItem key={article.link} article={article} />
       ))}
     </div>
   );

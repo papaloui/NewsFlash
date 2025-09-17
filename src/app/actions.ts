@@ -2,6 +2,8 @@
 'use server';
 
 import { extractArticleContent } from '@/lib/content-extractor';
+import { summarizeArticles } from '@/ai/flows/summarize-articles';
+import type { SummarizeArticlesInput, SummarizeArticlesOutput } from '@/ai/flows/summarize-articles';
 
 export async function getArticleContent(articleLink: string): Promise<string> {
     try {
@@ -29,5 +31,15 @@ export async function getArticleContent(articleLink: string): Promise<string> {
             return `Error: ${error.message}`;
         }
         return "An unknown error occurred while fetching the article.";
+    }
+}
+
+export async function summarizeArticlesInBatch(articles: SummarizeArticlesInput): Promise<SummarizeArticlesOutput> {
+    try {
+        const result = await summarizeArticles(articles);
+        return result;
+    } catch (error) {
+        console.error('Error summarizing articles in batch:', error);
+        throw new Error('Failed to get summaries from AI.');
     }
 }

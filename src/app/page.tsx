@@ -6,11 +6,16 @@ import { Header } from '@/components/app/header';
 import { NewsBoard } from '@/components/app/news-board';
 import { NewsBoardSkeleton } from '@/components/app/skeletons';
 import { useToast } from "@/hooks/use-toast";
-import { getArticleContent } from './actions';
+import { getArticleContent, summarizeArticlesInBatch } from './actions';
 import { FeedManager } from '@/components/app/feed-manager';
 import type { FeedCollection, Article } from '@/lib/types';
+import { summarizeArticlesPrompt } from '@/ai/flows/summarize-articles';
 
-export type ArticleWithContent = Article & { body?: string };
+export type ArticleWithStatus = Article & { 
+    body?: string;
+    aiSummary?: string;
+    isSummarizing?: boolean;
+};
 
 const initialCollections: FeedCollection[] = [
     {
@@ -31,9 +36,10 @@ const initialCollections: FeedCollection[] = [
   
 
 export default function Home() {
-  const [articles, setArticles] = useState<ArticleWithContent[]>([]);
+  const [articles, setArticles] = useState<ArticleWithStatus[]>([]);
   const [isFetching, setIsFetching] = useState(false);
   const [isFetchingBodies, setIsFetchingBodies] = useState(false);
+  const [isSummarizing, setIsSummarizing] = useState(false);
   const { toast } = useToast();
   
   const [collections, setCollections] = useState<FeedCollection[]>([]);
@@ -74,6 +80,44 @@ export default function Home() {
     }
   }, [collections]);
 
+  const handleSummarize = async (articlesWithBodies: ArticleWithStatus[]) => {
+      const articlesToSummarize = articlesWithBodies.filter(a => a.body && a.body.length > 100);
+      if (articlesToSummarize.length === 0) {
+          toast({ title: "No articles to summarize", description: "Could not fetch content for any articles."});
+          return;
+      }
+
+      setIsSummarizing(true);
+      setArticles(prev => prev.map(a => articlesToSummarize.some(ats => ats.link === a.link) ? { ...a, isSummarizing: true } : a));
+      
+      const promptPayload = articlesToSummarize.map(({ link, source, headline, publicationDate, body }) => ({ link, source, headline, publicationDate, body: body! }));
+
+      // Debugging: Log the proposed prompt payload
+      console.log("===== AI PROMPT PAYLOAD =====");
+      console.log("This is the JSON data that will be sent to the AI for summarization.");
+      console.log(JSON.stringify(promptPayload, null, 2));
+      console.log("===========================");
+
+      try {
+          const summaries = await summarizeArticlesInBatch(promptPayload);
+
+          setArticles(prev => prev.map(article => {
+              const matchingSummary = summaries.find(s => s.link === article.link);
+              return matchingSummary 
+                  ? { ...article, aiSummary: matchingSummary.summary, isSummarizing: false }
+                  : { ...article, isSummarizing: false }; // Stop loading state even if no summary was returned
+          }));
+
+      } catch (error) {
+          console.error(error);
+          const errorMessage = error instanceof Error ? error.message : "An unknown error occurred.";
+          toast({ variant: 'destructive', title: 'Summarization Failed', description: errorMessage });
+          setArticles(prev => prev.map(a => ({...a, isSummarizing: false})));
+      } finally {
+          setIsSummarizing(false);
+      }
+  };
+
 
   const handleFetch = async () => {
     if (!selectedCollectionId) return;
@@ -107,32 +151,31 @@ export default function Home() {
 
         const fetchedArticles: Article[] = await res.json();
         
-        const top5Articles = fetchedArticles.slice(0, 5);
-        setArticles(top5Articles);
+        const articlesToDisplay = fetchedArticles.slice(0, 5);
+        setArticles(articlesToDisplay);
         setIsFetching(false); // Done fetching headlines
 
-        // Fetch bodies for the top 5
-        let articlesWithBodies = 0;
-        top5Articles.forEach(async (article) => {
+        // Fetch bodies for the articles
+        const articlesWithBodies: ArticleWithStatus[] = await Promise.all(articlesToDisplay.map(async (article) => {
             try {
               const body = await getArticleContent(article.link);
-              setArticles(prev => 
-                prev.map(a => a.link === article.link ? { ...a, body } : a)
-              );
+              const articleWithBody = { ...article, body };
+              // Update state for individual article as it's fetched
+              setArticles(prev => prev.map(a => a.link === article.link ? articleWithBody : a));
+              return articleWithBody;
             } catch (error) {
                console.error(`Failed to fetch content for ${article.link}`, error);
-               setArticles(prev => 
-                prev.map(a => a.link === article.link ? { ...a, body: "Could not load article content." } : a)
-              );
-            } finally {
-                articlesWithBodies++;
-                if (articlesWithBodies === top5Articles.length) {
-                    setIsFetchingBodies(false);
-                }
+               const articleWithError = { ...article, body: "Could not load article content." };
+                setArticles(prev => prev.map(a => a.link === article.link ? articleWithError : a));
+               return articleWithError;
             }
-        });
-        if(top5Articles.length === 0) {
-            setIsFetchingBodies(false);
+        }));
+
+        setIsFetchingBodies(false);
+
+        // After all bodies are fetched, trigger summarization
+        if(articlesWithBodies.length > 0) {
+            await handleSummarize(articlesWithBodies);
         }
 
     } catch (error) {
@@ -159,14 +202,14 @@ export default function Home() {
             selectedCollectionId={selectedCollectionId}
             setSelectedCollectionId={setSelectedCollectionId}
             onFetch={handleFetch}
-            isFetching={isFetching || isFetchingBodies}
+            isFetching={isFetching || isFetchingBodies || isSummarizing}
         />
 
         <div className="space-y-6">
-          {(isFetching || isFetchingBodies) && <NewsBoardSkeleton />}
+          {(isFetching) && <NewsBoardSkeleton />}
           
           <div className="transition-opacity duration-300">
-              {!(isFetching || isFetchingBodies) && <NewsBoard articles={articles} onSummarize={() => {}} />}
+              {!isFetching && <NewsBoard articles={articles} />}
           </div>
         </div>
       </main>
