@@ -12,7 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { getSectionSummary, getTranscriptSummary } from './actions';
 import { HansardChat } from '@/components/app/hansard-chat';
-import type { TranscriptChunk } from '@/ai/flows/summarize-hansard-transcript';
+import type { TranscriptChunk } from '@/lib/schemas';
 
 
 interface InterventionContent {

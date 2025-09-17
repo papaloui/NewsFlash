@@ -39,3 +39,19 @@ export const NewsAgentOutputSchema = z.object({
     digest: z.string().optional().describe('A summary of all the headlines, if news articles were fetched.'),
 });
 export type NewsAgentOutput = z.infer<typeof NewsAgentOutputSchema>;
+
+export const TranscriptChunkSchema = z.object({
+    speaker: z.string(),
+    text: z.string(),
+});
+export type TranscriptChunk = z.infer<typeof TranscriptChunkSchema>;
+
+export const SummarizeHansardTranscriptInputSchema = z.array(TranscriptChunkSchema);
+export type SummarizeHansardTranscriptInput = z.infer<typeof SummarizeHansardTranscriptInputSchema>;
+
+export const SummarizeHansardTranscriptOutputSchema = z.object({
+    summary: z.string().describe('A detailed, page-long summary of the provided Hansard transcript.'),
+    topics: z.array(z.string()).describe('A list of the main topics discussed in the debate.'),
+    billsReferenced: z.array(z.string()).describe('A list of all bills referenced in the debate transcript.'),
+});
+export type SummarizeHansardTranscriptOutput = z.infer<typeof SummarizeHansardTranscriptOutputSchema>;
