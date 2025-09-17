@@ -309,7 +309,7 @@ export default function HouseOfCommonsPage() {
                     <div className='space-y-3'>
                       <h3 className="font-semibold">Topics Discussed</h3>
                       <div className="flex flex-wrap gap-2">
-                        {fullSummary.topics.map((topic, index) => (
+                        {fullSummary.topics?.map((topic, index) => (
                           <Badge key={index} variant="secondary">{topic}</Badge>
                         ))}
                       </div>
@@ -326,36 +326,36 @@ export default function HouseOfCommonsPage() {
                       <h3 className="font-semibold mt-4 mb-2">Summary</h3>
                       <p className="whitespace-pre-wrap font-body text-sm leading-relaxed">{fullSummary.summary}</p>
                     </div>
+
+                     {fullSummary.debugInfo && (
+                        <Accordion type="single" collapsible className="w-full mt-4">
+                        <AccordionItem value="debug-info">
+                            <AccordionTrigger>
+                                <span className="flex items-center gap-2"><Bug className="h-4 w-4" /> Summarization Debugger</span>
+                            </AccordionTrigger>
+                            <AccordionContent className="space-y-4">
+                                <div>
+                                    <h4 className="font-semibold text-lg mb-2">Final Prompt to AI</h4>
+                                    <p className="text-xs text-muted-foreground mb-2">This is the combined text of all chunk summaries that was sent to the AI for the final summarization step.</p>
+                                    <pre className="whitespace-pre-wrap font-body text-xs bg-muted p-4 rounded-md max-h-[400px] overflow-auto">{fullSummary.debugInfo.finalPrompt}</pre>
+                                </div>
+                                <div>
+                                    <h4 className="font-semibold text-lg mb-2">Individual Chunk Summaries ({fullSummary.debugInfo.chunkSummaries.length})</h4>
+                                    <p className="text-xs text-muted-foreground mb-2">These are the summaries generated for each individual chunk of text from the transcript.</p>
+                                    <div className="space-y-2 max-h-[600px] overflow-auto pr-2">
+                                    {fullSummary.debugInfo.chunkSummaries.map((chunk, index) => (
+                                        <div key={index} className="bg-muted/50 p-3 rounded-md">
+                                            <p className="text-sm whitespace-pre-wrap font-mono">{chunk}</p>
+                                        </div>
+                                    ))}
+                                    </div>
+                                </div>
+                            </AccordionContent>
+                        </AccordionItem>
+                        </Accordion>
+                    )}
                 </CardContent>
             </Card>
-        )}
-        
-        {fullSummary?.debugInfo && (
-            <Accordion type="single" collapsible className="w-full mt-6">
-              <AccordionItem value="debug-info">
-                <AccordionTrigger>
-                    <span className="flex items-center gap-2"><Bug className="h-4 w-4" /> Summarization Debugger</span>
-                </AccordionTrigger>
-                <AccordionContent className="space-y-4">
-                    <div>
-                        <h4 className="font-semibold text-lg mb-2">Final Prompt to AI</h4>
-                        <p className="text-xs text-muted-foreground mb-2">This is the combined text of all chunk summaries that was sent to the AI for the final summarization step.</p>
-                        <pre className="whitespace-pre-wrap font-body text-xs bg-muted p-4 rounded-md max-h-[400px] overflow-auto">{fullSummary.debugInfo.finalPrompt}</pre>
-                    </div>
-                     <div>
-                        <h4 className="font-semibold text-lg mb-2">Individual Chunk Summaries ({fullSummary.debugInfo.chunkSummaries.length})</h4>
-                         <p className="text-xs text-muted-foreground mb-2">These are the summaries generated for each individual chunk of text from the transcript.</p>
-                        <div className="space-y-2 max-h-[600px] overflow-auto pr-2">
-                        {fullSummary.debugInfo.chunkSummaries.map((chunk, index) => (
-                            <div key={index} className="bg-muted/50 p-3 rounded-md">
-                                <p className="text-sm whitespace-pre-wrap font-mono">{chunk}</p>
-                            </div>
-                        ))}
-                        </div>
-                    </div>
-                </AccordionContent>
-              </AccordionItem>
-            </Accordion>
         )}
 
         {fullSummary && data && (
@@ -403,4 +403,3 @@ export default function HouseOfCommonsPage() {
     </div>
   );
 }
-

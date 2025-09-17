@@ -2,9 +2,9 @@
 'use server';
 
 import { summarizeHansardSection } from "@/ai/flows/summarize-hansard-section";
-import { summarizeHansardTranscript, type SummarizeHansardTranscriptOutput } from "@/ai/flows/summarize-hansard-transcript";
+import { summarizeHansardTranscript } from "@/ai/flows/summarize-hansard-transcript";
 import { hansardAgent } from "@/ai/flows/hansard-agent";
-import type { TranscriptChunk } from "@/lib/schemas";
+import type { TranscriptChunk, SummarizeHansardTranscriptOutput } from "@/lib/schemas";
 
 export async function getSectionSummary(sectionText: string): Promise<string> {
     try {
