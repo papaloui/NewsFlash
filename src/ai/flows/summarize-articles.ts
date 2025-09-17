@@ -36,10 +36,10 @@ export async function summarizeArticles(input: SummarizeArticlesInput): Promise<
 
 const promptTemplate = `You are a news summarization expert. You will be given a JSON array of news articles.
 For each article, generate a concise and neutral 1-2 sentence summary.
-Your output MUST be a valid JSON array, where each object contains the original "link" and the generated "summary".
+Your output MUST be a valid JSON array, where each object contains the original "link" and the generated "summary". Do not include any other text or explanation outside of the JSON array itself.
 
 Input Articles:
-{{{json input}}}
+{{jsonStringify this}}
 
 Your JSON Output:
 `;

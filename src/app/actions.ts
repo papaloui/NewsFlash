@@ -37,6 +37,10 @@ export async function getArticleContent(articleLink: string): Promise<string> {
 export async function summarizeArticlesInBatch(articles: SummarizeArticlesInput): Promise<SummarizeArticlesOutput> {
     try {
         const result = await summarizeArticles(articles);
+        console.log("===== RAW AI OUTPUT (Server Log) =====");
+        console.log("This is the raw JSON data received from the AI model.");
+        console.log(JSON.stringify(result, null, 2));
+        console.log("======================================");
         return result;
     } catch (error) {
         console.error('Error summarizing articles in batch:', error);
