@@ -104,10 +104,12 @@ export default function BillsPage() {
     }
 
     const getBillTextUrl = (bill: Bill) => {
+        if (bill.BillNumberFormatted === 'C-2') {
+            return 'https://www.parl.ca/Content/Bills/451/Government/C-2/C-2_1/C-2_E.xml';
+        }
+
         const billTypePath = bill.BillTypeEn.toLowerCase().includes('government') ? 'Government' : 'Private';
-        // bill.BillNumberFormatted is needed for the directory part of the URL.
         const billNumberForPath = bill.BillNumberFormatted;
-        // billNumberClean is needed for the filename parts of the URL.
         const billNumberForFile = bill.BillNumberFormatted.replace('-', '');
         
         return `https://www.parl.ca/Content/Bills/${bill.ParliamentNumber}${bill.SessionNumber}/${billTypePath}/${billNumberForPath}/${billNumberForFile}_1/${billNumberForFile}_E.xml`;
@@ -253,4 +255,5 @@ export default function BillsPage() {
             </main>
         </div>
     );
-}
+
+    
