@@ -120,3 +120,40 @@ export async function getSittingDates(): Promise<string[]> {
         throw new Error('An unknown error occurred while fetching sitting dates.');
     }
 }
+
+
+export async function getHansardLinkForDate(date: string): Promise<string | null> {
+    try {
+        const url = `https://www.ourcommons.ca/en/parliamentary-business/${date}`;
+        const response = await fetch(url);
+        if (!response.ok) {
+            throw new Error(`Failed to fetch parliamentary business page for ${date}: ${response.statusText}`);
+        }
+        const html = await response.text();
+        const dom = new JSDOM(html);
+        const document = dom.window.document;
+
+        const links = document.querySelectorAll('a');
+        let hansardLink: string | null = null;
+        
+        links.forEach(link => {
+            if (link.textContent?.trim() === 'Debates (Hansard)') {
+                hansardLink = link.href;
+            }
+        });
+        
+        if (hansardLink) {
+             // The link is relative, so make it absolute
+            return new URL(hansardLink, 'https://www.ourcommons.ca').toString();
+        }
+
+        return null;
+
+    } catch (error) {
+        console.error(`Error fetching Hansard link for date ${date}:`, error);
+        if (error instanceof Error) {
+            throw new Error(error.message);
+        }
+        throw new Error('An unknown error occurred while fetching the Hansard link.');
+    }
+}

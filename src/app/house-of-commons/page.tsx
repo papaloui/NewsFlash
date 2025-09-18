@@ -5,12 +5,12 @@ import { useState, useEffect, useRef } from 'react';
 import { Header } from '@/components/app/header';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
-import { Landmark, Loader2, Search, BookOpen, Clock, Languages, User, FileText as FileTextIcon, ExternalLink, ScrollText, Bug, Hourglass, CalendarDays } from 'lucide-react';
+import { Landmark, Loader2, Search, BookOpen, Clock, Languages, User, FileText as FileTextIcon, ExternalLink, ScrollText, Bug, Hourglass, CalendarDays, Link as LinkIcon } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { startTranscriptSummary, checkSummaryJob, getSittingDates } from './actions';
+import { startTranscriptSummary, checkSummaryJob, getSittingDates, getHansardLinkForDate } from './actions';
 import { HansardChat } from '@/components/app/hansard-chat';
 
 
@@ -48,6 +48,8 @@ interface SittingDateCheck {
     error: string | null;
     allDates: string[];
     wasSitting: boolean | null;
+    hansardUrl: string | null;
+    isUrlLoading: boolean;
 }
 
 
@@ -66,6 +68,8 @@ export default function HouseOfCommonsPage() {
     error: null,
     allDates: [],
     wasSitting: null,
+    hansardUrl: null,
+    isUrlLoading: false,
   });
 
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -173,15 +177,26 @@ export default function HouseOfCommonsPage() {
   }
 
    const handleSittingDateCheck = async () => {
-    setSittingDateCheck({ isLoading: true, error: null, allDates: [], wasSitting: null });
+    setSittingDateCheck({ isLoading: true, error: null, allDates: [], wasSitting: null, hansardUrl: null, isUrlLoading: false });
+    const dateToCheck = '2025-09-17';
     try {
         const dates = await getSittingDates();
-        const dateToCheck = '2025-09-17';
         const wasSitting = dates.includes(dateToCheck);
-        setSittingDateCheck({ isLoading: false, error: null, allDates: dates, wasSitting: wasSitting });
+        setSittingDateCheck(prev => ({ ...prev, isLoading: false, allDates: dates, wasSitting: wasSitting }));
+
+        if (wasSitting) {
+            setSittingDateCheck(prev => ({ ...prev, isUrlLoading: true }));
+            try {
+                const hansardUrl = await getHansardLinkForDate(dateToCheck);
+                setSittingDateCheck(prev => ({ ...prev, isUrlLoading: false, hansardUrl }));
+            } catch (urlError) {
+                const urlErrorMessage = urlError instanceof Error ? urlError.message : 'An unknown error occurred while fetching the Hansard link.';
+                setSittingDateCheck(prev => ({ ...prev, isUrlLoading: false, error: `${prev.error ? `${prev.error}\n` : ''}${urlErrorMessage}`}));
+            }
+        }
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred.';
-        setSittingDateCheck({ isLoading: false, error: errorMessage, allDates: [], wasSitting: null });
+        setSittingDateCheck({ isLoading: false, error: errorMessage, allDates: [], wasSitting: null, hansardUrl: null, isUrlLoading: false });
     }
   };
 
@@ -300,6 +315,22 @@ export default function HouseOfCommonsPage() {
                                     {sittingDateCheck.wasSitting ? 'Yes' : 'No'}
                                 </p>
                             </div>
+                            
+                            {sittingDateCheck.isUrlLoading && (
+                                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                    <span>Finding Hansard link...</span>
+                                </div>
+                            )}
+
+                            {sittingDateCheck.hansardUrl && (
+                                <div>
+                                    <h3 className="font-semibold flex items-center gap-2"><LinkIcon className="h-4 w-4" /> Found Hansard Link:</h3>
+                                    <a href={sittingDateCheck.hansardUrl} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-600 underline break-all">
+                                        {sittingDateCheck.hansardUrl}
+                                    </a>
+                                </div>
+                            )}
 
                              <Accordion type="single" collapsible className="w-full">
                                 <AccordionItem value="item-1">
