@@ -62,9 +62,9 @@ export default function BillsPage() {
     const filteredBills = bills.filter(bill => {
         const searchTerm = filter.toLowerCase();
         return (
-            bill.BillNumberCode.toLowerCase().includes(searchTerm) ||
-            bill.BillTitle.En.toLowerCase().includes(searchTerm) ||
-            bill.Status.toLowerCase().includes(searchTerm)
+            (bill.BillNumberCode && bill.BillNumberCode.toLowerCase().includes(searchTerm)) ||
+            (bill.BillTitle?.En && bill.BillTitle.En.toLowerCase().includes(searchTerm)) ||
+            (bill.Status && bill.Status.toLowerCase().includes(searchTerm))
         );
     });
     
@@ -132,10 +132,10 @@ export default function BillsPage() {
                                 </CardHeader>
                                 <CardContent className="space-y-2 text-sm flex-grow">
                                      <p>
-                                        <span className="font-semibold">Introduced:</span> {new Date(bill.IntroducedDate).toLocaleDateString()}
+                                        <span className="font-semibold">Introduced:</span> {bill.IntroducedDate ? new Date(bill.IntroducedDate).toLocaleDateString() : 'N/A'}
                                     </p>
                                     <p>
-                                        <span className="font-semibold">Last Update:</span> {new Date(bill.LastUpdated).toLocaleDateString()}
+                                        <span className="font-semibold">Last Update:</span> {bill.LastUpdated ? new Date(bill.LastUpdated).toLocaleDateString() : 'N/A'}
                                     </p>
                                      <div className="flex items-center gap-2">
                                         <span className="font-semibold">Status:</span>
