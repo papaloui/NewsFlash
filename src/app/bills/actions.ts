@@ -12,6 +12,8 @@ async function getLegisInfoJsonUrl(): Promise<{ url: string | null, debug: strin
         debug.push('Returning cached LegisInfo JSON URL.');
         return { url: jsonUrlCache, debug };
     }
+    
+    let htmlForDebug: string | undefined;
 
     try {
         const pageUrl = 'https://www.ourcommons.ca/en/open-data#LegisInfo';
@@ -21,6 +23,7 @@ async function getLegisInfoJsonUrl(): Promise<{ url: string | null, debug: strin
             throw new Error(`Failed to fetch Open Data page: ${response.statusText}`);
         }
         const html = await response.text();
+        htmlForDebug = html; // Store HTML for potential error reporting
         debug.push('Successfully fetched HTML content.');
 
         const dom = new JSDOM(html);
@@ -34,19 +37,16 @@ async function getLegisInfoJsonUrl(): Promise<{ url: string | null, debug: strin
         debug.push('Found LegisInfo section. Searching for JSON link within it.');
 
         const links = Array.from(legisInfoSection.querySelectorAll('a'));
-        // Find the link where the href specifically contains the path to the bills JSON data.
         const jsonLink = links.find(link => link.href.includes('legisinfo/en/bills/json'));
 
         if (jsonLink && jsonLink.href) {
             debug.push(`Found link element with href containing "legisinfo/en/bills/json". Href: ${jsonLink.href}`);
-            // The href should be absolute, but we resolve it just in case it's relative.
             const absoluteUrl = new URL(jsonLink.href, pageUrl).toString();
             debug.push(`Step 3: Resolved absolute URL to: ${absoluteUrl}`);
             jsonUrlCache = absoluteUrl; // Cache the found URL
             return { url: absoluteUrl, debug };
         }
 
-        // If not found, return the raw HTML for debugging.
         debug.push('Error: Could not find the JSON download link. Review the raw HTML below.');
         throw new Error('Could not find the JSON download link in the LegisInfo section. Looked for an `a` tag with an `href` containing "legisinfo/en/bills/json".');
 
@@ -54,8 +54,6 @@ async function getLegisInfoJsonUrl(): Promise<{ url: string | null, debug: strin
         const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
         debug.push(`Error during scraping: ${errorMessage}`);
         console.error('Error finding LegisInfo JSON URL:', error);
-        // Pass raw HTML back on error for debugging
-        const htmlForDebug = (error as any).html || ''; 
         return { url: null, debug, rawHtml: htmlForDebug };
     }
 }
@@ -71,6 +69,7 @@ export async function getBillsData(): Promise<any> {
         rawHtml = scrapedHtml;
 
         if (!jsonUrl) {
+            // Pass the raw HTML back even if the URL wasn't found
             return { error: 'Failed to find the JSON URL for bills data.', debug: allDebugMessages, rawHtml };
         }
 

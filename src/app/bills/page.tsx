@@ -45,7 +45,9 @@ export default function BillsPage() {
             setRawHtml(null);
             try {
                 const data = await getBillsData();
-                setDebugInfo(data.debug || []);
+                if(data.debug) {
+                    setDebugInfo(data.debug);
+                }
                 if (data.rawHtml) {
                     setRawHtml(data.rawHtml);
                 }
@@ -130,10 +132,11 @@ export default function BillsPage() {
                                     </AlertDescription>
                                 </Alert>
                                 {rawHtml && (
-                                    <Alert className="mt-4">
+                                    <Alert className="mt-4" variant="destructive">
                                         <Info className="h-4 w-4" />
                                         <AlertTitle>Raw HTML Source</AlertTitle>
                                         <AlertDescription>
+                                            <p className="mb-2 text-xs">The following HTML was scraped. The scraper failed to find the JSON link within this content.</p>
                                             <pre className="mt-2 whitespace-pre-wrap text-xs bg-muted p-4 rounded-md max-h-[400px] overflow-auto">
                                                 {rawHtml}
                                             </pre>
