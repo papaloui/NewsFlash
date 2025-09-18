@@ -27,7 +27,7 @@ export async function summarizeBills(input: SummarizeBillsInput): Promise<Summar
 
 const promptTemplate = `You are a parliamentary analyst. You have been provided with the full text of one or more parliamentary bills from the Canadian Parliament.
 Your task is to create a single, coherent report summarizing all of them.
-For each bill, generate a concise and neutral summary. Combine these into the final report.
+For each bill, generate a concise and neutral summary that focuses on **what changes the bill makes to existing laws**. Explain the practical impact of these changes. Combine these summaries into the final report.
 If the text for a bill could not be retrieved, a note will indicate this. Please mention this in your summary for that specific bill.
 
 Here is the full text of the bills:
