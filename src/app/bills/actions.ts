@@ -2,7 +2,7 @@
 'use server';
 
 import { XMLParser } from "fast-xml-parser";
-import { summarizeBills, type SummarizeBillsInput, promptTemplate as summarizeBillsPromptTemplate } from "@/ai/flows/summarize-bills";
+import { summarizeBills, type SummarizeBillsInput } from "@/ai/flows/summarize-bills";
 
 export async function getBillsData(): Promise<any> {
     try {
@@ -116,6 +116,18 @@ export async function summarizeBillsFromYesterday(allBills: any[]): Promise<{ su
         debugLog.push("The following JSON object will be provided to the AI for summarization:");
         debugLog.push(JSON.stringify(aiInput, null, 2));
         debugLog.push("==================================");
+        
+        const summarizeBillsPromptTemplate = `You are a parliamentary analyst. You will be given a JSON array of parliamentary bills from the Canadian Parliament that were updated yesterday.
+For each bill, generate a concise and neutral summary. Combine these into a single, coherent report for the day.
+If the text for a bill could not be retrieved, please note that in your summary for that specific bill.
+
+Your output MUST be a single JSON object with a "summary" field containing the full report.
+
+Input Bills:
+{{jsonStringify this}}
+
+Your JSON Output:
+`;
         
         debugLog.push("\n===== AI Prompt Template =====");
         debugLog.push("This is the template the AI will use to render the final prompt:");

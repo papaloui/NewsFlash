@@ -28,7 +28,7 @@ export async function summarizeBills(input: SummarizeBillsInput): Promise<Summar
     return summarizeBillsFlow(input);
 }
 
-export const promptTemplate = `You are a parliamentary analyst. You will be given a JSON array of parliamentary bills from the Canadian Parliament that were updated yesterday.
+const promptTemplate = `You are a parliamentary analyst. You will be given a JSON array of parliamentary bills from the Canadian Parliament that were updated yesterday.
 For each bill, generate a concise and neutral summary. Combine these into a single, coherent report for the day.
 If the text for a bill could not be retrieved, please note that in your summary for that specific bill.
 
