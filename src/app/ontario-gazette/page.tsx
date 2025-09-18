@@ -9,6 +9,7 @@ import { Newspaper, Loader2, ServerCrash, Sparkles, FileCode } from 'lucide-reac
 import { Button } from '@/components/ui/button';
 import { getAndSummarizeOntarioGazette } from './actions';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import { Badge } from '@/components/ui/badge';
 
 interface DebugInfo {
     step: string;
