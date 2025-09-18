@@ -50,25 +50,7 @@ export async function getBillsData(): Promise<any> {
     }
 }
 
-function getBillTextUrl(bill: any): string {
-    const parliamentSession = `${bill.ParliamentNumber}${bill.SessionNumber}`;
-    const billNumberClean = bill.BillNumberFormatted.replace('-', '');
-    let billTypePath = 'Private'; // Default to Private
-
-    if (bill.BillTypeEn.toLowerCase().includes('government')) {
-        billTypePath = 'Government';
-    } else if (bill.BillTypeEn.toLowerCase().includes('private member')) {
-        billTypePath = 'Private';
-    } else if (bill.BillTypeEn.toLowerCase().includes('senate public bill')) {
-        // Senate bills might have a different structure, but we'll try 'Private' as a common case
-        billTypePath = 'Private';
-    }
-
-    return `https://www.parl.ca/Content/Bills/${parliamentSession}/${billTypePath}/${billNumberClean}/${billNumberClean}_1/${billNumberClean}_E.xml`;
-}
-
-async function getBillText(bill: any): Promise<string> {
-    const url = getBillTextUrl(bill);
+async function getBillText(url: string): Promise<string> {
     try {
         const response = await fetch(url);
         if (!response.ok) {
@@ -86,24 +68,20 @@ async function getBillText(bill: any): Promise<string> {
 
 export async function summarizeBillsFromYesterday(allBills: any[]): Promise<{ summary: string } | { error: string }> {
     try {
-        const yesterday = new Date();
-        yesterday.setDate(yesterday.getDate() - 1);
-        const yesterdayString = yesterday.toISOString().split('T')[0];
+        // FOR DEBUGGING: Hardcode a single bill to test the summarization flow.
+        const testBillUrl = "https://www.parl.ca/Content/Bills/451/Government/C-2/C-2_1/C-2_E.xml";
+        const testBillNumber = "C-2";
 
-        const billsFromYesterday = allBills.filter(bill => {
-            return bill.LatestActivityDateTime && bill.LatestActivityDateTime.startsWith(yesterdayString);
-        });
+        const billText = await getBillText(testBillUrl);
 
-        if (billsFromYesterday.length === 0) {
-            return { summary: "No bills were updated yesterday." };
+        const billsWithText: SummarizeBillsInput = [{
+            billNumber: testBillNumber,
+            text: billText
+        }];
+        
+        if (billText.startsWith('Bill text not available') || billText.startsWith('Failed to fetch')) {
+             return { error: `Could not process Bill ${testBillNumber}. Reason: ${billText}` };
         }
-
-        const billsWithText: SummarizeBillsInput = await Promise.all(
-            billsFromYesterday.map(async (bill) => {
-                const text = await getBillText(bill);
-                return { billNumber: bill.BillNumberFormatted, text };
-            })
-        );
         
         const result = await summarizeBills(billsWithText);
 
