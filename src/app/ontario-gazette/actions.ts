@@ -18,7 +18,7 @@ const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 export async function getAndSummarizeOntarioGazette(): Promise<GazetteResult> {
     const initialSearchUrl = 'https://www.ontario.ca/search/ontario-gazette';
-    const searchText = 'Ontario Gazette Volume 158 Issue 37';
+    const targetHref = '/document/ontario-gazette-volume-158-issue-37-september-13-2025';
 
     try {
         // Step 1: Fetch the initial search page
@@ -32,13 +32,13 @@ export async function getAndSummarizeOntarioGazette(): Promise<GazetteResult> {
         let dom = new JSDOM(searchPageHtml);
         let document = dom.window.document;
 
-        // Step 2: Find the link to the specific gazette issue page
-        console.log(`[Ontario Gazette] Step 2: Searching for link with text: "${searchText}"`);
+        // Step 2: Find the link to the specific gazette issue page by its href
+        console.log(`[Ontario Gazette] Step 2: Searching for link with href: "${targetHref}"`);
         const links = Array.from(document.querySelectorAll('a'));
-        const gazettePageLink = links.find(link => link.textContent?.trim() === searchText);
+        const gazettePageLink = links.find(link => link.href === targetHref);
 
         if (!gazettePageLink || !gazettePageLink.href) {
-            return { error: 'Could not find the link to the gazette issue page on the search results.', debugInfo: { step: '2', url: initialSearchUrl, html: searchPageHtml } };
+            return { error: `Could not find the link to the gazette issue page with the href '${targetHref}'.`, debugInfo: { step: '2', url: initialSearchUrl, html: searchPageHtml } };
         }
         
         // Links on this site are relative, so we need to make them absolute
