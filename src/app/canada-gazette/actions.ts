@@ -20,7 +20,7 @@ export async function getLatestGazettePdfLink(): Promise<{ link?: string; error?
         // Find all links and filter for the one that contains the specific text pattern.
         const links = Array.from(document.querySelectorAll('a'));
         const gazetteLink = links.find(link => 
-            link.textContent?.includes('Part I, volume') && link.href.endsWith('.pdf')
+            link.textContent?.includes('number 37')
         );
 
         if (gazetteLink && gazetteLink.href) {
