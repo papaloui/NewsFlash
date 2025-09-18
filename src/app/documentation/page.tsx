@@ -1,9 +1,10 @@
+
 'use client';
 
 import { Header } from '@/components/app/header';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { FileCode, Bot, Telescope, Target, Lightbulb, Link as LinkIcon, Server, FileText } from 'lucide-react';
+import { FileCode, Telescope, Target, Server, FileText, Landmark, Building, Rss, Link as LinkIcon } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 
 const FeatureCard = ({ title, icon, description, children }: { title: string, icon: React.ReactNode, description: string, children: React.ReactNode }) => (
@@ -143,7 +144,7 @@ export default function DocumentationPage() {
                                     </Section>
                                     <Section title="Technology Stack" icon={<Server />}>
                                         <p>Uses <Badge variant="secondary">fast-xml-parser</Badge> for federal bills and <Badge variant="secondary">JSDOM</Badge> for scraping the Ontario bills page.</p>
-                                        <p>The `summarize-bills.ts` AI flow uses <Badge variant="secondary">Gemini</p> to create a report from the combined text of multiple bills.</p>
+                                        <p>The `summarize-bills.ts` AI flow uses <Badge variant="secondary">Gemini</Badge> to create a report from the combined text of multiple bills.</p>
                                     </Section>
                                     <Section title="Future Roadmap" icon={<Telescope />}>
                                         <p>
@@ -226,3 +227,5 @@ export default function DocumentationPage() {
         </div>
     );
 }
+
+    
