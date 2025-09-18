@@ -59,65 +59,76 @@ async function getBillText(bill: any): Promise<string> {
     try {
         const response = await fetch(url);
         if (!response.ok) {
-            return `Bill text not available. URL: ${url} (Status: ${response.status}).`;
+            return `Bill text not available for ${bill.BillNumberFormatted}. URL: ${url} (Status: ${response.status}).`;
         }
         const text = await response.text();
         return text;
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        return `Failed to fetch bill text. URL: ${url}. Reason: ${errorMessage}`;
+        return `Failed to fetch bill text for ${bill.BillNumberFormatted}. URL: ${url}. Reason: ${errorMessage}`;
     }
 }
 
+
 export async function summarizeBillsFromYesterday(allBills: any[]): Promise<{ summary: string } | { error: string }> {
-    const debugLog: string[] = ["Starting Bill Summarization Process..."];
     try {
         const yesterday = new Date();
         yesterday.setDate(yesterday.getDate() - 1);
         const yesterdayStr = yesterday.toISOString().split('T')[0];
-
-        debugLog.push(`Filtering for bills updated on ${yesterdayStr}.`);
 
         const billsFromYesterday = allBills.filter(bill => {
             const activityDate = bill.LatestActivityDateTime?.split('T')[0];
             return activityDate === yesterdayStr;
         });
         
-        debugLog.push(`Found ${billsFromYesterday.length} bills from yesterday.`);
-
         if (billsFromYesterday.length === 0) {
             return { summary: "No bills were updated yesterday." };
         }
 
-        // 1. Fetch all bill texts in parallel
         const billTexts = await Promise.all(
             billsFromYesterday.map(async (bill) => {
                 const text = await getBillText(bill);
-                // Add a header to separate bills in the final combined string
                 return `--- BILL ${bill.BillNumberFormatted} ---\n${text}`;
             })
         );
         
-        // 2. Join all texts into a single string
         const combinedText = billTexts.join('\n\n');
         
+        if (!combinedText.trim()) {
+            return { error: "Could not retrieve text for any of yesterday's bills. Aborting summarization." };
+        }
+
         const aiInput: SummarizeBillsInput = { billsText: combinedText };
         
-        debugLog.push(`\n===== AI Prompt Input (Combined Text) =====`);
-        debugLog.push(`The following combined text (${(combinedText.length / 1024).toFixed(2)} KB) will be provided to the AI for summarization.`);
-        // Note: We don't log the full 'combinedText' itself as it could be very long and clutter the console.
-        debugLog.push("===========================");
-        
-        // 3. Make a single call to the AI with the combined text
-        const result = await summarizeBills(aiInput);
+        // This is the template used by the AI flow. We are replicating it here for debugging.
+        const promptTemplate = `You are a parliamentary analyst. You have been provided with the full text of one or more parliamentary bills from the Canadian Parliament.
+Your task is to create a single, coherent report summarizing all of them.
+For each bill, generate a concise and neutral summary. Combine these into the final report.
+If the text for a bill could not be retrieved, a note will indicate this. Please mention this in your summary for that specific bill.
 
-        return result;
+Here is the full text of the bills:
+---
+{{{billsText}}}
+---
+
+Your JSON Output:
+`;
+        
+        const finalPromptForAI = promptTemplate.replace('{{{billsText}}}', combinedText);
+
+        try {
+            const result = await summarizeBills(aiInput);
+            return result;
+        } catch (aiError) {
+             const errorMessage = aiError instanceof Error ? aiError.message : 'An unknown AI error occurred.';
+             const debugMessage = `!!! AI SUMMARIZATION FAILED !!!\nError: ${errorMessage}\n\n--- EXACT PROMPT SENT TO AI ---\n\n${finalPromptForAI}`;
+             console.error(debugMessage);
+             throw new Error(debugMessage);
+        }
 
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred during summarization.';
-        debugLog.push(`\n!!! AI SUMMARIZATION FAILED !!!`);
-        debugLog.push(errorMessage);
         console.error('Error in summarizeBillsFromYesterday:', error);
-        return { error: `AI summarization failed: ${errorMessage}\n\nFull Debug Log:\n${debugLog.join('\n')}` };
+        return { error: errorMessage };
     }
 }
