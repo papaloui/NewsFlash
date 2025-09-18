@@ -4,7 +4,7 @@
 import { Header } from '@/components/app/header';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { FileCode, Telescope, Target, Server, FileText, Landmark, Building, Rss, Link as LinkIcon, BookMarked } from 'lucide-react';
+import { FileCode, Telescope, Target, Server, FileText, Landmark, Building, Rss, Link as LinkIcon, BookMarked, Newspaper } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 
 const FeatureCard = ({ title, icon, description, children }: { title: string, icon: React.ReactNode, description: string, children: React.ReactNode }) => (
@@ -187,6 +187,39 @@ export default function DocumentationPage() {
                                         </p>
                                         <p>
                                             <span className="font-semibold text-foreground">2. Structured Summaries:</span> Update the AI prompt to extract key information into a structured format (e.g., Proposed Regulations, Government Notices) instead of a single block of text.
+                                        </p>
+                                    </Section>
+                                </AccordionContent>
+                            </AccordionItem>
+                        </Accordion>
+                    </FeatureCard>
+
+                    <FeatureCard title="Ontario Gazette Summarizer" icon={<Newspaper />} description="Summarizes the official newspaper of the Ontario government.">
+                        <Accordion type="single" collapsible className="w-full">
+                            <AccordionItem value="item-1">
+                                <AccordionTrigger>View Details</AccordionTrigger>
+                                <AccordionContent className="space-y-4 pt-2">
+                                     <Section title="Current Logic" icon={<Target />}>
+                                        <p>This is a multi-step scraping process. It starts at a search page, looks for a specific volume, navigates to that result page, and then finds the PDF download link on the second page. The process is hardcoded to look for "Ontario Gazette Volume 158 Issue 37".</p>
+                                         <div className="flex items-start gap-2">
+                                            <LinkIcon className="h-4 w-4 mt-1" />
+                                            <div>
+                                                <span className="font-semibold">Key URLs:</span>
+                                                <p className="break-all text-xs">Initial Search Page: https://www.ontario.ca/search/ontario-gazette</p>
+                                            </div>
+                                        </div>
+                                    </Section>
+                                    <Section title="Technology Stack" icon={<Server />}>
+                                        <p>Uses <Badge variant="secondary">JSDOM</Badge> to scrape multiple pages to find the final PDF link. The PDF is fetched and passed as a Base64 data URI to the `summarize-ontario-gazette.ts` AI flow.</p>
+                                        <p>The AI flow uses <Badge variant="secondary">Gemini 1.5 Flash</Badge> to understand the PDF directly.</p>
+                                        <p>Includes extensive front-end debugging to show the URL and raw HTML of each step if the process fails.</p>
+                                    </Section>
+                                    <Section title="Future Roadmap" icon={<Telescope />}>
+                                        <p>
+                                            <span className="font-semibold text-foreground">1. Dynamic Search Term:</span> Instead of searching for a hardcoded volume and issue, implement logic to find the most recent gazette available.
+                                        </p>
+                                        <p>
+                                            <span className="font-semibold text-foreground">2. User Input:</span> Allow users to enter a volume and issue number to search for specific historical gazettes.
                                         </p>
                                     </Section>
                                 </AccordionContent>

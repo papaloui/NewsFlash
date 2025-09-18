@@ -14,4 +14,6 @@ import '@/ai/flows/summarize-bills.ts';
 import '@/ai/flows/news-agent.ts';
 import '@/ai/flows/summarize-gazette.ts';
 import '@/ai/flows/summarize-ontario-debate.ts';
+import '@/ai/flows/summarize-ontario-gazette.ts';
+
 
