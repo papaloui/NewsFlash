@@ -3,7 +3,7 @@
 /**
  * @fileOverview Summarizes a batch of bill texts in a single AI request.
  *
- * - summarizeBills - A function that takes an array of bills with their text and returns a summary.
+ * - summarizeBills - A function that takes a string of bill texts and returns a summary.
  * - SummarizeBillsInput - The input type for the function.
  * - SummarizeBillsOutput - The return type for the function.
  */
@@ -11,12 +11,9 @@
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 
-const BillForSummarySchema = z.object({
-    billNumber: z.string().describe('The number of the bill, e.g., C-221.'),
-    text: z.string().describe('The full text content of the bill. If not available, this will contain a note about its unavailability.'),
+const SummarizeBillsInputSchema = z.object({
+    billsText: z.string().describe('A single string containing the full text of one or more parliamentary bills, separated by headers.'),
 });
-
-const SummarizeBillsInputSchema = z.array(BillForSummarySchema);
 export type SummarizeBillsInput = z.infer<typeof SummarizeBillsInputSchema>;
 
 const SummarizeBillsOutputSchema = z.object({
@@ -28,14 +25,17 @@ export async function summarizeBills(input: SummarizeBillsInput): Promise<Summar
     return summarizeBillsFlow(input);
 }
 
-const promptTemplate = `You are a parliamentary analyst. You will be given a JSON array of parliamentary bills from the Canadian Parliament that were updated yesterday.
-For each bill, generate a concise and neutral summary. Combine these into a single, coherent report for the day.
-If the text for a bill could not be retrieved, please note that in your summary for that specific bill.
+const promptTemplate = `You are a parliamentary analyst. You have been provided with the full text of one or more parliamentary bills from the Canadian Parliament.
+Your task is to create a single, coherent report summarizing all of them.
+For each bill, generate a concise and neutral summary. Combine these into the final report.
+If the text for a bill could not be retrieved, a note will indicate this. Please mention this in your summary for that specific bill.
 
 Your output MUST be a single JSON object with a "summary" field containing the full report.
 
-Input Bills:
-{{jsonStringify this}}
+Here is the full text of the bills:
+---
+{{{billsText}}}
+---
 
 Your JSON Output:
 `;
