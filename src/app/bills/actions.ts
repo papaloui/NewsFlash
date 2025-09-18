@@ -2,7 +2,7 @@
 'use server';
 
 import { XMLParser } from "fast-xml-parser";
-import { summarizeBills, type SummarizeBillsInput, summarizeBillsPrompt } from "@/ai/flows/summarize-bills";
+import { summarizeBills, type SummarizeBillsInput, promptTemplate as summarizeBillsPromptTemplate } from "@/ai/flows/summarize-bills";
 
 export async function getBillsData(): Promise<any> {
     try {
@@ -119,7 +119,7 @@ export async function summarizeBillsFromYesterday(allBills: any[]): Promise<{ su
         
         debugLog.push("\n===== AI Prompt Template =====");
         debugLog.push("This is the template the AI will use to render the final prompt:");
-        debugLog.push(summarizeBillsPrompt.prompt);
+        debugLog.push(summarizeBillsPromptTemplate);
         debugLog.push("============================");
 
         console.log("===== Full Bill Summarization Debug Log =====");
