@@ -13,15 +13,18 @@ export default function CanadaGazettePage() {
     const [pdfLink, setPdfLink] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [rawHtml, setRawHtml] = useState<string | null>(null);
     const { toast } = useToast();
 
     const handleFetchLink = async () => {
         setIsLoading(true);
         setError(null);
         setPdfLink(null);
+        setRawHtml(null);
         try {
             const result = await getLatestGazettePdfLink();
             if (result.error) {
+                setRawHtml(result.html || 'No HTML content was returned.');
                 throw new Error(result.error);
             }
             setPdfLink(result.link);
@@ -75,6 +78,14 @@ export default function CanadaGazettePage() {
                         <CardContent>
                           <p className="text-destructive/90">{error}</p>
                           <p className="text-sm text-muted-foreground mt-2">Could not retrieve the link from the Canada Gazette website. The site structure may have changed.</p>
+                          {rawHtml && (
+                            <div className="mt-4">
+                                <h3 className="font-semibold">Raw HTML Content:</h3>
+                                <pre className="mt-2 p-4 bg-muted/50 rounded-md text-xs overflow-auto max-h-96">
+                                    <code>{rawHtml}</code>
+                                </pre>
+                            </div>
+                          )}
                         </CardContent>
                       </Card>
                 )}

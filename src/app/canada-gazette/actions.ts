@@ -3,18 +3,16 @@
 
 import { JSDOM } from 'jsdom';
 
-export async function getLatestGazettePdfLink(): Promise<{ link?: string; error?: string }> {
+export async function getLatestGazettePdfLink(): Promise<{ link?: string; error?: string, html?: string }> {
     const url = 'https://gazette.gc.ca/rp-pr/p1/2025/index-eng.html';
+    let html = '';
     console.log(`[Request Log] Fetching Canada Gazette index from: ${url}`);
     try {
         const response = await fetch(url);
         if (!response.ok) {
             throw new Error(`Failed to fetch Canada Gazette index: ${response.statusText}`);
         }
-        const html = await response.text();
-        console.log("--- Fetched Canada Gazette HTML ---");
-        console.log(html);
-        console.log("---------------------------------");
+        html = await response.text();
         
         const dom = new JSDOM(html);
         const document = dom.window.document;
@@ -31,12 +29,12 @@ export async function getLatestGazettePdfLink(): Promise<{ link?: string; error?
             return { link: absoluteLink };
         }
 
-        const errorMessage = 'Could not find the target PDF link on the page. The page structure may have changed. Review the HTML logged to the server console.';
-        return { error: errorMessage };
+        const errorMessage = 'Could not find the target PDF link on the page. The page structure may have changed. Review the HTML below.';
+        return { error: errorMessage, html: html };
 
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
         console.error('Error in getLatestGazettePdfLink:', error);
-        return { error: errorMessage };
+        return { error: errorMessage, html: html };
     }
 }
