@@ -17,7 +17,7 @@ export async function getLatestGazettePdfLink(): Promise<{ link?: string; error?
         const dom = new JSDOM(html);
         const document = dom.window.document;
 
-        // Find all links and filter for the one that contains the specific text pattern.
+        // Find all links and filter for the one that contains the specific text pattern and has a PDF href.
         const links = Array.from(document.querySelectorAll('a'));
         const gazetteLink = links.find(link => 
             link.textContent?.includes('Part I, volume') && link.href.endsWith('.pdf')
