@@ -5,13 +5,11 @@ import { useState, useEffect } from 'react';
 import { Header } from '@/components/app/header';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
-import { FileText, Loader2, ServerCrash, ExternalLink, Filter, Info, Bug } from 'lucide-react';
+import { FileText, Loader2, ServerCrash, ExternalLink, Filter, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { getBillsData } from './actions';
 import { Input } from '@/components/ui/input';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 
 interface Bill {
     Parliament: number;
@@ -32,8 +30,6 @@ export default function BillsPage() {
     const [bills, setBills] = useState<Bill[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [debugInfo, setDebugInfo] = useState<string[]>([]);
-    const [rawHtml, setRawHtml] = useState<string | null>(null);
     const [filter, setFilter] = useState('');
     const { toast } = useToast();
 
@@ -41,16 +37,8 @@ export default function BillsPage() {
         async function loadData() {
             setIsLoading(true);
             setError(null);
-            setDebugInfo([]);
-            setRawHtml(null);
             try {
                 const data = await getBillsData();
-                if(data.debug) {
-                    setDebugInfo(data.debug);
-                }
-                if (data.rawHtml) {
-                    setRawHtml(data.rawHtml);
-                }
                 if (data.error) {
                     throw new Error(data.error);
                 }
@@ -115,39 +103,6 @@ export default function BillsPage() {
                     </CardContent>
                 </Card>
 
-                {(debugInfo.length > 0 || rawHtml) && (
-                    <Accordion type="single" collapsible className="w-full mt-6">
-                        <AccordionItem value="debug-info">
-                            <AccordionTrigger>
-                                <span className="flex items-center gap-2"><Bug className="h-4 w-4" /> Debugging Information</span>
-                            </AccordionTrigger>
-                            <AccordionContent>
-                                <Alert>
-                                    <Info className="h-4 w-4" />
-                                    <AlertTitle>Scraping & Parsing Log</AlertTitle>
-                                    <AlertDescription>
-                                        <ul className="list-disc pl-5 mt-2 space-y-1 text-xs">
-                                            {debugInfo.map((msg, index) => <li key={index}>{msg}</li>)}
-                                        </ul>
-                                    </AlertDescription>
-                                </Alert>
-                                {rawHtml && (
-                                    <Alert className="mt-4" variant="destructive">
-                                        <Info className="h-4 w-4" />
-                                        <AlertTitle>Raw HTML Source</AlertTitle>
-                                        <AlertDescription>
-                                            <p className="mb-2 text-xs">The following HTML was scraped. The scraper may have failed to find the data link within this content.</p>
-                                            <pre className="mt-2 whitespace-pre-wrap text-xs bg-muted p-4 rounded-md max-h-[400px] overflow-auto">
-                                                {rawHtml}
-                                            </pre>
-                                        </AlertDescription>
-                                    </Alert>
-                                )}
-                            </AccordionContent>
-                        </AccordionItem>
-                    </Accordion>
-                )}
-
                 {isLoading && (
                     <div className="mt-6 flex justify-center items-center gap-2 text-muted-foreground">
                         <Loader2 className="h-8 w-8 animate-spin" />
@@ -162,7 +117,7 @@ export default function BillsPage() {
                         </CardHeader>
                         <CardContent>
                           <p className="text-destructive/90">{error}</p>
-                          <p className="text-sm text-muted-foreground mt-2">Could not retrieve the bill information from the parliamentary source. Please check the debug logs above for more details on which URL was used and where the process may have failed. Try refreshing the page to attempt the fetch again.</p>
+                          <p className="text-sm text-muted-foreground mt-2">Could not retrieve the bill information from the parliamentary source. This may be a temporary issue with the data source. Try refreshing the page to attempt the fetch again.</p>
                         </CardContent>
                       </Card>
                 )}
