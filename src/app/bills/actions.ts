@@ -50,34 +50,45 @@ export async function getBillsData(): Promise<any> {
     }
 }
 
-async function getBillText(bill: any): Promise<string> {
+async function getBillText(bill: any, debugLog: string[]): Promise<string> {
     const billTypePath = bill.BillTypeEn.toLowerCase().includes('government') ? 'Government' : 'Private';
     const billNumberForPath = bill.BillNumberFormatted;
     
     const url = `https://www.parl.ca/Content/Bills/${bill.ParliamentNumber}${bill.SessionNumber}/${billTypePath}/${billNumberForPath}/${billNumberForPath}_1/${billNumberForPath}_E.xml`;
+    debugLog.push(`Requesting URL: ${url}`);
 
     try {
         const response = await fetch(url);
         if (!response.ok) {
-            return `Bill text not available. URL: ${url} (Status: ${response.status}). The URL structure may be different for this bill type.`;
+            const errorText = `Bill text not available. URL: ${url} (Status: ${response.status}).`;
+            debugLog.push(`Request FAILED: ${errorText}`);
+            return errorText;
         }
         const text = await response.text();
+        debugLog.push(`XML content received from ${url}:\n---\n${text}\n---`);
         return text;
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        return `Failed to fetch bill text. URL: ${url}. Reason: ${errorMessage}`;
+        const errorText = `Failed to fetch bill text. URL: ${url}. Reason: ${errorMessage}`;
+        debugLog.push(`Request FAILED: ${errorText}`);
+        return errorText;
     }
 }
 
 export async function summarizeBillsFromYesterday(allBills: any[]): Promise<{ summary: string } | { error: string }> {
+    const debugLog: string[] = ["Starting Bill Summarization Process..."];
     try {
         const yesterday = new Date();
         yesterday.setDate(yesterday.getDate() - 1);
         const yesterdayStr = yesterday.toISOString().split('T')[0];
 
+        debugLog.push(`Filtering for bills updated on ${yesterdayStr}.`);
+
         const billsFromYesterday = allBills.filter(bill => {
             return bill.LatestActivityDateTime.startsWith(yesterdayStr);
         });
+
+        debugLog.push(`Found ${billsFromYesterday.length} bills from yesterday.`);
 
         if (billsFromYesterday.length === 0) {
             return { summary: "No bills were updated yesterday." };
@@ -85,7 +96,8 @@ export async function summarizeBillsFromYesterday(allBills: any[]): Promise<{ su
 
         const billsWithText: SummarizeBillsInput = await Promise.all(
             billsFromYesterday.map(async (bill) => {
-                const text = await getBillText(bill);
+                debugLog.push(`\nProcessing Bill: ${bill.BillNumberFormatted}`);
+                const text = await getBillText(bill, debugLog);
                 return {
                     billNumber: bill.BillNumberFormatted,
                     text: text
@@ -94,21 +106,30 @@ export async function summarizeBillsFromYesterday(allBills: any[]): Promise<{ su
         );
         
         if (billsWithText.every(b => b.text.startsWith('Bill text not available') || b.text.startsWith('Failed to fetch'))) {
-             return { error: `Could not retrieve the text for any of the ${billsFromYesterday.length} bills updated yesterday.` };
+             const error = `Could not retrieve the text for any of the ${billsFromYesterday.length} bills updated yesterday.`;
+             debugLog.push(error);
+             return { error: `${error}\n\nDebug Log:\n${debugLog.join('\n')}` };
         }
         
-        // DEBUG: Log the data being sent to the AI
-        console.log("===== Summarize Bills Input (Server Log) =====");
-        console.log(JSON.stringify(billsWithText, null, 2));
+        const aiInput = billsWithText;
+        debugLog.push("\n===== AI Prompt Input =====");
+        debugLog.push("The following JSON object will be provided to the AI for summarization:");
+        debugLog.push(JSON.stringify(aiInput, null, 2));
+        debugLog.push("==========================");
+
+        console.log("===== Full Bill Summarization Debug Log =====");
+        console.log(debugLog.join('\n'));
         console.log("==============================================");
         
-        const result = await summarizeBills(billsWithText);
+        const result = await summarizeBills(aiInput);
 
         return result;
 
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred during summarization.';
+        debugLog.push(`\n!!! AI SUMMARIZATION FAILED !!!`);
+        debugLog.push(errorMessage);
         console.error('Error in summarizeBillsFromYesterday:', error);
-        return { error: errorMessage };
+        return { error: `AI summarization failed: ${errorMessage}\n\nFull Debug Log:\n${debugLog.join('\n')}` };
     }
 }

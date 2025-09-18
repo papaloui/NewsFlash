@@ -40,13 +40,8 @@ const webSearchTool = ai.defineTool(
   async ({ query }) => searchWeb(query)
 );
 
-const agentTools: Record<string, any> = {
-    searchNews: newsSearchTool,
-    searchWeb: webSearchTool,
-};
-
-
-const agentPrompt = ai.prompt('newsAgentPrompt', {
+const agentPrompt = ai.definePrompt({
+    name: 'newsAgentPrompt',
     input: { schema: NewsAgentInputSchema },
     output: { schema: NewsAgentOutputSchema },
     tools: [newsSearchTool, webSearchTool],
@@ -63,62 +58,55 @@ const agentPrompt = ai.prompt('newsAgentPrompt', {
     `,
 });
 
+const newsAgentFlow = ai.defineFlow(
+    {
+        name: 'newsAgentFlow',
+        inputSchema: NewsAgentInputSchema,
+        outputSchema: NewsAgentOutputSchema,
+    },
+    async (input) => {
+        const llmResponse = await agentPrompt(input);
+        
+        let toolOutputs: any[] = [];
+
+        if (llmResponse.toolCalls && llmResponse.toolCalls.length > 0) {
+            toolOutputs = await Promise.all(
+                llmResponse.toolCalls.map(async (toolCall) => {
+                    const tool = toolCall.name === 'searchNews' ? newsSearchTool : webSearchTool;
+                    const output = await tool(toolCall.input);
+                    return { call: toolCall, output };
+                })
+            );
+        } else {
+             const output = await newsSearchTool({ query: input.query });
+             toolOutputs.push({ call: { name: 'searchNews', input: { query: input.query } }, output });
+        }
+        
+        const finalResponse = await agentPrompt(input, {
+            history: [
+                llmResponse.request,
+                llmResponse.response,
+                ...toolOutputs.map(t => ({
+                    role: 'tool',
+                    content: [ { toolResponse: { name: t.call.name, output: t.output } } ]
+                }))
+            ]
+        });
+
+        const output = finalResponse.output;
+
+        if (output?.articles && output.articles.length > 0) {
+            const headlines = output.articles.slice(0, 10).map(a => ({ headline: a.headline, body: a.summary }));
+            if (headlines.length > 0) {
+                const digestSummary = await summarizeHeadlinesDigest(headlines);
+                output.digest = digestSummary.digest;
+            }
+        }
+
+        return output || { response: "I was unable to process your request." };
+    }
+);
 
 export async function newsAgent(input: NewsAgentInput): Promise<NewsAgentOutput> {
-  const llmResponse = await agentPrompt.generate({
-    input: input,
-  });
-  let toolOutputs: any[] = [];
-
-  const toolCalls = llmResponse.toolCalls();
-
-  if (toolCalls && toolCalls.length > 0) {
-      toolOutputs = await Promise.all(
-        toolCalls.map(async (toolCall) => {
-            const tool = agentTools[toolCall.name];
-            if (!tool) throw new Error(`Unknown tool: ${toolCall.name}`);
-            const output = await tool.run(toolCall.input);
-            return { call: toolCall, output };
-        })
-      );
-  } else {
-    // If no tool is called, but the user is likely asking for news, call the news tool by default.
-    // This handles simple queries like "AI news" or the initial "top headlines" load.
-     const tool = newsSearchTool; // Use the direct tool object
-     const output = await tool.run({ query: input.query });
-     toolOutputs.push({ call: { name: 'searchNews', input: { query: input.query } }, output });
-  }
-  
-  const finalResponse = await agentPrompt.generate({
-    input: input,
-    history: [
-        llmResponse.request,
-        llmResponse.response(),
-        ...toolOutputs.map(t => ({
-            role: 'tool',
-            content: [
-                {
-                    toolResponse: {
-                        name: t.call.name,
-                        output: t.output
-                    }
-                }
-            ]
-        }))
-    ]
-  });
-  
-  const output = finalResponse.output();
-
-  if (output?.articles && output.articles.length > 0) {
-    // Take only the top 10 headlines for the digest
-    const headlines = output.articles.slice(0, 10).map(a => ({ headline: a.headline, body: a.summary }));
-    if(headlines.length > 0) {
-      const digestSummary = await summarizeHeadlinesDigest(headlines);
-      output.digest = digestSummary.digest;
-    }
-  }
-  
-  // Ensure we always return a valid NewsAgentOutput object, even if the model fails.
-  return output || { response: "I was unable to process your request." };
+    return newsAgentFlow(input);
 }
