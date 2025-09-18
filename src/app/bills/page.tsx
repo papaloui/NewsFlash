@@ -5,12 +5,13 @@ import { useState, useEffect } from 'react';
 import { Header } from '@/components/app/header';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
-import { FileText, Loader2, ServerCrash, ExternalLink, Filter, Info } from 'lucide-react';
+import { FileText, Loader2, ServerCrash, ExternalLink, Filter, Info, Bug } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { getBillsData } from './actions';
 import { Input } from '@/components/ui/input';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 
 interface Bill {
     Parliament: number;
@@ -32,6 +33,7 @@ export default function BillsPage() {
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [debugInfo, setDebugInfo] = useState<string[]>([]);
+    const [rawHtml, setRawHtml] = useState<string | null>(null);
     const [filter, setFilter] = useState('');
     const { toast } = useToast();
 
@@ -40,9 +42,13 @@ export default function BillsPage() {
             setIsLoading(true);
             setError(null);
             setDebugInfo([]);
+            setRawHtml(null);
             try {
                 const data = await getBillsData();
                 setDebugInfo(data.debug || []);
+                if (data.rawHtml) {
+                    setRawHtml(data.rawHtml);
+                }
                 if (data.error) {
                     throw new Error(data.error);
                 }
@@ -97,7 +103,7 @@ export default function BillsPage() {
                          <div className="relative mb-4">
                             <Filter className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                             <Input
-                                placeholder={`Filter ${bills.length} bills by number, title, or status...`}
+                                placeholder={`Filter ${bills.length > 0 ? bills.length : ''} bills by number, title, or status...`}
                                 value={filter}
                                 onChange={(e) => setFilter(e.target.value)}
                                 className="pl-10 w-full"
@@ -107,18 +113,37 @@ export default function BillsPage() {
                     </CardContent>
                 </Card>
 
-                {debugInfo.length > 0 && (
-                    <Alert className="mt-6">
-                        <Info className="h-4 w-4" />
-                        <AlertTitle>Debugging Information</AlertTitle>
-                        <AlertDescription>
-                            <ul className="list-disc pl-5 mt-2 space-y-1 text-xs">
-                                {debugInfo.map((msg, index) => <li key={index}>{msg}</li>)}
-                            </ul>
-                        </AlertDescription>
-                    </Alert>
+                {(debugInfo.length > 0 || rawHtml) && (
+                    <Accordion type="single" collapsible className="w-full mt-6">
+                        <AccordionItem value="debug-info">
+                            <AccordionTrigger>
+                                <span className="flex items-center gap-2"><Bug className="h-4 w-4" /> Debugging Information</span>
+                            </AccordionTrigger>
+                            <AccordionContent>
+                                <Alert>
+                                    <Info className="h-4 w-4" />
+                                    <AlertTitle>Scraping Log</AlertTitle>
+                                    <AlertDescription>
+                                        <ul className="list-disc pl-5 mt-2 space-y-1 text-xs">
+                                            {debugInfo.map((msg, index) => <li key={index}>{msg}</li>)}
+                                        </ul>
+                                    </AlertDescription>
+                                </Alert>
+                                {rawHtml && (
+                                    <Alert className="mt-4">
+                                        <Info className="h-4 w-4" />
+                                        <AlertTitle>Raw HTML Source</AlertTitle>
+                                        <AlertDescription>
+                                            <pre className="mt-2 whitespace-pre-wrap text-xs bg-muted p-4 rounded-md max-h-[400px] overflow-auto">
+                                                {rawHtml}
+                                            </pre>
+                                        </AlertDescription>
+                                    </Alert>
+                                )}
+                            </AccordionContent>
+                        </AccordionItem>
+                    </Accordion>
                 )}
-
 
                 {isLoading && (
                     <div className="mt-6 flex justify-center items-center gap-2 text-muted-foreground">

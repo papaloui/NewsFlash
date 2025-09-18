@@ -6,7 +6,7 @@ import { JSDOM } from 'jsdom';
 // Cache the JSON URL to avoid re-scraping the HTML page on every request
 let jsonUrlCache: string | null = null;
 
-async function getLegisInfoJsonUrl(): Promise<{ url: string | null, debug: string[] }> {
+async function getLegisInfoJsonUrl(): Promise<{ url: string | null, debug: string[], rawHtml?: string }> {
     const debug: string[] = [];
     if (jsonUrlCache) {
         debug.push('Returning cached LegisInfo JSON URL.');
@@ -46,25 +46,32 @@ async function getLegisInfoJsonUrl(): Promise<{ url: string | null, debug: strin
             return { url: absoluteUrl, debug };
         }
 
+        // If not found, return the raw HTML for debugging.
+        debug.push('Error: Could not find the JSON download link. Review the raw HTML below.');
         throw new Error('Could not find the JSON download link in the LegisInfo section. Looked for an `a` tag with an `href` containing "legisinfo/en/bills/json".');
 
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
         debug.push(`Error during scraping: ${errorMessage}`);
         console.error('Error finding LegisInfo JSON URL:', error);
-        return { url: null, debug };
+        // Pass raw HTML back on error for debugging
+        const htmlForDebug = (error as any).html || ''; 
+        return { url: null, debug, rawHtml: htmlForDebug };
     }
 }
 
 
 export async function getBillsData(): Promise<any> {
     let allDebugMessages: string[] = [];
+    let rawHtml: string | undefined;
+
     try {
-        const { url: jsonUrl, debug: scrapeDebug } = await getLegisInfoJsonUrl();
+        const { url: jsonUrl, debug: scrapeDebug, rawHtml: scrapedHtml } = await getLegisInfoJsonUrl();
         allDebugMessages = allDebugMessages.concat(scrapeDebug);
+        rawHtml = scrapedHtml;
 
         if (!jsonUrl) {
-            return { error: 'Failed to find the JSON URL for bills data.', debug: allDebugMessages };
+            return { error: 'Failed to find the JSON URL for bills data.', debug: allDebugMessages, rawHtml };
         }
 
         allDebugMessages.push(`Step 4: Fetching JSON data from ${jsonUrl}`);
@@ -85,6 +92,6 @@ export async function getBillsData(): Promise<any> {
         const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
         allDebugMessages.push(`Error fetching JSON data: ${errorMessage}`);
         console.error('Error fetching bills data:', error);
-        return { error: errorMessage, debug: allDebugMessages };
+        return { error: errorMessage, debug: allDebugMessages, rawHtml };
     }
 }
