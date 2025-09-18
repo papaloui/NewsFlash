@@ -59,15 +59,13 @@ async function getBillText(bill: any): Promise<string> {
     try {
         const response = await fetch(url);
         if (!response.ok) {
-            const errorText = `Bill text not available. URL: ${url} (Status: ${response.status}).`;
-            return errorText;
+            return `Bill text not available. URL: ${url} (Status: ${response.status}).`;
         }
         const text = await response.text();
         return text;
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        const errorText = `Failed to fetch bill text. URL: ${url}. Reason: ${errorMessage}`;
-        return errorText;
+        return `Failed to fetch bill text. URL: ${url}. Reason: ${errorMessage}`;
     }
 }
 
@@ -94,18 +92,11 @@ export async function summarizeBillsFromYesterday(allBills: any[]): Promise<{ su
         const billTexts = await Promise.all(
             billsFromYesterday.map(async (bill) => {
                 const text = await getBillText(bill);
-                // Add a header to separate bills
                 return `--- BILL ${bill.BillNumberFormatted} ---\n${text}`;
             })
         );
         
         const combinedText = billTexts.join('\n\n');
-
-        if (combinedText.trim() === '' || billsFromYesterday.every(b => (billTexts.find(t => t.includes(b.BillNumberFormatted)) || '').includes('Bill text not available'))) {
-             const error = `Could not retrieve the text for any of the ${billsFromYesterday.length} bills updated yesterday.`;
-             debugLog.push(error);
-             return { error: `${error}\n\nDebug Log:\n${debugLog.join('\n')}` };
-        }
         
         const aiInput: SummarizeBillsInput = { billsText: combinedText };
         
