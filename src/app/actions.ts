@@ -7,6 +7,7 @@ import type { SummarizeArticlesInput, SummarizeArticlesOutput } from '@/ai/flows
 
 export async function getArticleContent(articleLink: string): Promise<string> {
     try {
+        console.log(`[Request Log] Fetching article content from: ${articleLink}`);
         // Some sites block requests without a user agent.
         const headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'

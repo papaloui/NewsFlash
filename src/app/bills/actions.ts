@@ -54,7 +54,8 @@ async function getBillText(bill: any): Promise<string> {
     const billTypePath = bill.BillTypeEn.toLowerCase().includes('government') ? 'Government' : 'Private';
     const billNumberForPath = bill.BillNumberFormatted;
     
-    const url = `https://www.parl.ca/Content/Bills/${bill.ParliamentNumber}/${bill.SessionNumber}/${billTypePath}/${billNumberForPath}/${billNumberForPath}_1/${billNumberForPath}_E.xml`;
+    const url = `https://www.parl.ca/Content/Bills/${bill.ParliamentNumber}${bill.SessionNumber}/${billTypePath}/${billNumberForPath}/${billNumberForPath}_1/${billNumberForPath}_E.xml`;
+    console.log(`[Request Log] Fetching bill text from: ${url}`);
     
     try {
         const response = await fetch(url);
@@ -100,7 +101,6 @@ export async function summarizeBillsFromYesterday(allBills: any[]): Promise<{ su
 
         const aiInput: SummarizeBillsInput = { billsText: combinedText };
         
-        // This is the template used by the AI flow. We are replicating it here for debugging.
         const promptTemplate = `You are a parliamentary analyst. You have been provided with the full text of one or more parliamentary bills from the Canadian Parliament.
 Your task is to create a single, coherent report summarizing all of them.
 For each bill, generate a concise and neutral summary. Combine these into the final report.
@@ -114,12 +114,11 @@ Here is the full text of the bills:
 Your JSON Output:
 `;
         
-        const finalPromptForAI = promptTemplate.replace('{{{billsText}}}', combinedText);
-
         try {
             const result = await summarizeBills(aiInput);
             return result;
         } catch (aiError) {
+             const finalPromptForAI = promptTemplate.replace('{{{billsText}}}', combinedText);
              const errorMessage = aiError instanceof Error ? aiError.message : 'An unknown AI error occurred.';
              const debugMessage = `!!! AI SUMMARIZATION FAILED !!!\nError: ${errorMessage}\n\n--- EXACT PROMPT SENT TO AI ---\n\n${finalPromptForAI}`;
              console.error(debugMessage);

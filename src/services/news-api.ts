@@ -57,8 +57,6 @@ const newsSources = [
  * @returns A promise that resolves to an array of articles.
  */
 export async function searchNews(query: string): Promise<Article[]> {
-  console.log(`Searching for news with query: "${query}" using NewsAPI.org`);
-  
   const apiKey = process.env.NEWS_API_KEY;
   if (!apiKey) {
     throw new Error('NewsAPI key is not configured. Please add NEWS_API_KEY to your .env file.');
@@ -78,7 +76,8 @@ export async function searchNews(query: string): Promise<Article[]> {
     const fromDate = yesterday.toISOString().split('T')[0]; // YYYY-MM-DD
     url = `https://newsapi.org/v2/everything?q=${encodeURIComponent(query)}&from=${fromDate}&sources=${newsSources}&apiKey=${apiKey}&pageSize=10&sortBy=relevancy`;
   }
-
+  
+  console.log(`[Request Log] Searching for news with query: "${query}" using URL: ${url}`);
 
   try {
     const response = await fetch(url, { headers: { 'User-Agent': 'NewsFlashAggregator/1.0' } });
