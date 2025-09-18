@@ -40,7 +40,7 @@ Input Bills:
 Your JSON Output:
 `;
 
-export const summarizeBillsPrompt = ai.definePrompt({
+const summarizeBillsPrompt = ai.definePrompt({
     name: 'summarizeBillsPrompt',
     input: { schema: SummarizeBillsInputSchema },
     output: { schema: SummarizeBillsOutputSchema },
