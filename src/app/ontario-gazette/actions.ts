@@ -33,7 +33,7 @@ export async function getAndSummarizeOntarioGazette(): Promise<GazetteResult> {
         const gazettePageResponse = await fetch(gazettePageUrl, { headers });
         const gazettePageHtml = await gazettePageResponse.text();
         if (!gazettePageResponse.ok) {
-            return { error: `Failed to fetch the gazette issue page. It may be down for maintenance. Status: ${gazettePageResponse.status}`, debugInfo: { step: '1', url: gazettePageUrl, html: gazettePageHtml } };
+            return { error: `Failed to fetch the gazette issue page. Status: ${gazettePageResponse.status}`, debugInfo: { step: '1', url: gazettePageUrl, html: gazettePageHtml } };
         }
         
         const dom = new JSDOM(gazettePageHtml);
