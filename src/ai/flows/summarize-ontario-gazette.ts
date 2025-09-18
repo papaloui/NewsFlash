@@ -31,9 +31,9 @@ const prompt = ai.definePrompt({
     config: {
         maxOutputTokens: 4096,
     },
-    prompt: `You are an expert governmental analyst specializing in Ontario provincial regulations. You have been provided with a PDF of the Ontario Gazette.
-Your task is to create a clear and concise summary of the most important proposed regulations, notices, and orders.
-Focus on items that have a broad impact on the public or specific industries. For each key item, briefly explain what it is about.
+    prompt: `You are an expert legal analyst. Please provide a one-page summary of the legal developments detailed in the attached Ontario Gazette document. 
+Focus specifically on the 'Ontario Regulations' section, highlighting any new or amended regulations and their key impacts. 
+The summary should be concise, easy to read, and highlight the most significant changes.
 
 Here is the document:
 ---
