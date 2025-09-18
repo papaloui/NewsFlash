@@ -4,7 +4,7 @@
 import { Header } from '@/components/app/header';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { FileCode, Telescope, Target, Server, FileText, Landmark, Building, Rss, Link as LinkIcon } from 'lucide-react';
+import { FileCode, Telescope, Target, Server, FileText, Landmark, Building, Rss, Link as LinkIcon, BookMarked } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 
 const FeatureCard = ({ title, icon, description, children }: { title: string, icon: React.ReactNode, description: string, children: React.ReactNode }) => (
