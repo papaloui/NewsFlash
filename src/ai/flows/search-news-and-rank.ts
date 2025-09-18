@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview A flow that searches for news articles using a tool and then ranks them.
@@ -62,7 +63,19 @@ const searchNewsAndRankFlow = ai.defineFlow(
         outputSchema: SearchNewsAndRankOutputSchema,
     },
     async (input) => {
-        const { output } = await searchAndRankPrompt(input);
-        return output || [];
+        // This flow is designed to be called by an agent that can execute tools.
+        // It's not meant to be called directly with just a query, as it needs to run the tool first.
+        // For a direct implementation, we would need to orchestrate the tool call here.
+        // However, we will rely on the agent pattern from news-agent.ts for now.
+        const llmResponse = await searchAndRankPrompt(input);
+
+        // This flow is now more of a prompt definition that an agent can use.
+        // The actual tool orchestration should happen in the calling agent flow.
+        if (llmResponse.output) {
+            return llmResponse.output;
+        }
+
+        // Fallback or further logic would be needed if this flow was to be used directly
+        return [];
     }
 );

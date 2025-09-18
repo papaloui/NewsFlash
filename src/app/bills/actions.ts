@@ -2,7 +2,7 @@
 'use server';
 
 import { XMLParser } from "fast-xml-parser";
-import { summarizeBills, type SummarizeBillsInput } from "@/ai/flows/summarize-bills";
+import { summarizeBills, type SummarizeBillsInput, summarizeBillsPrompt } from "@/ai/flows/summarize-bills";
 
 export async function getBillsData(): Promise<any> {
     try {
@@ -112,10 +112,15 @@ export async function summarizeBillsFromYesterday(allBills: any[]): Promise<{ su
         }
         
         const aiInput = billsWithText;
-        debugLog.push("\n===== AI Prompt Input =====");
+        debugLog.push("\n===== AI Prompt Input (JSON) =====");
         debugLog.push("The following JSON object will be provided to the AI for summarization:");
         debugLog.push(JSON.stringify(aiInput, null, 2));
-        debugLog.push("==========================");
+        debugLog.push("==================================");
+        
+        debugLog.push("\n===== AI Prompt Template =====");
+        debugLog.push("This is the template the AI will use to render the final prompt:");
+        debugLog.push(summarizeBillsPrompt.prompt);
+        debugLog.push("============================");
 
         console.log("===== Full Bill Summarization Debug Log =====");
         console.log(debugLog.join('\n'));
