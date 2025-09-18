@@ -5,6 +5,7 @@ import { summarizeHansardTranscript } from "@/ai/flows/summarize-hansard-transcr
 import { hansardAgent } from "@/ai/flows/hansard-agent";
 import type { SummarizeHansardTranscriptOutput } from "@/lib/schemas";
 import { logDebug } from "@/lib/logger";
+import { JSDOM } from 'jsdom';
 
 // In-memory cache for long-running jobs.
 // NOTE: In a production, multi-instance environment, you would use a persistent store like Firestore or Redis.
@@ -82,5 +83,40 @@ export async function askHansardAgent(transcript: string, summary: string, query
             return `Error: ${error.message}`;
         }
         return "An unknown error occurred while asking the agent.";
+    }
+}
+
+
+export async function getSittingDates(): Promise<string[]> {
+    try {
+        const url = 'https://www.ourcommons.ca/en/sitting-calendar';
+        const response = await fetch(url);
+        if (!response.ok) {
+            throw new Error(`Failed to fetch calendar: ${response.statusText}`);
+        }
+        const html = await response.text();
+        const dom = new JSDOM(html);
+        const document = dom.window.document;
+
+        const sittingDays = document.querySelectorAll('.chamber-meeting');
+        const dates: string[] = [];
+        const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+
+        sittingDays.forEach(day => {
+            day.classList.forEach(className => {
+                if (dateRegex.test(className)) {
+                    dates.push(className);
+                }
+            });
+        });
+        
+        return dates;
+
+    } catch (error) {
+        console.error('Error fetching sitting dates:', error);
+        if (error instanceof Error) {
+            throw new Error(error.message);
+        }
+        throw new Error('An unknown error occurred while fetching sitting dates.');
     }
 }

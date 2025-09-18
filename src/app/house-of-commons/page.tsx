@@ -5,12 +5,12 @@ import { useState, useEffect, useRef } from 'react';
 import { Header } from '@/components/app/header';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
-import { Landmark, Loader2, Search, BookOpen, Clock, Languages, User, FileText as FileTextIcon, ExternalLink, ScrollText, Bug, Hourglass } from 'lucide-react';
+import { Landmark, Loader2, Search, BookOpen, Clock, Languages, User, FileText as FileTextIcon, ExternalLink, ScrollText, Bug, Hourglass, CalendarDays } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { startTranscriptSummary, checkSummaryJob } from './actions';
+import { startTranscriptSummary, checkSummaryJob, getSittingDates } from './actions';
 import { HansardChat } from '@/components/app/hansard-chat';
 
 
@@ -43,6 +43,13 @@ interface FullSummary {
   debugInfo?: DebugInfo;
 }
 
+interface SittingDateCheck {
+    isLoading: boolean;
+    error: string | null;
+    allDates: string[];
+    wasSitting: boolean | null;
+}
+
 
 export default function HouseOfCommonsPage() {
   const [url, setUrl] = useState('https://www.ourcommons.ca/Content/House/451/Debates/021/HAN021-E.XML');
@@ -54,6 +61,12 @@ export default function HouseOfCommonsPage() {
   const [isSummarizingFull, setIsSummarizingFull] = useState(false);
   const [summaryError, setSummaryError] = useState<string | null>(null);
   const [jobId, setJobId] = useState<string | null>(null);
+  const [sittingDateCheck, setSittingDateCheck] = useState<SittingDateCheck>({
+    isLoading: false,
+    error: null,
+    allDates: [],
+    wasSitting: null,
+  });
 
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -159,6 +172,18 @@ export default function HouseOfCommonsPage() {
     }
   }
 
+   const handleSittingDateCheck = async () => {
+    setSittingDateCheck({ isLoading: true, error: null, allDates: [], wasSitting: null });
+    try {
+        const dates = await getSittingDates();
+        const dateToCheck = '2025-09-17';
+        const wasSitting = dates.includes(dateToCheck);
+        setSittingDateCheck({ isLoading: false, error: null, allDates: dates, wasSitting: wasSitting });
+    } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred.';
+        setSittingDateCheck({ isLoading: false, error: errorMessage, allDates: [], wasSitting: null });
+    }
+  };
 
   const renderIntervention = (intervention: Intervention, idx: number) => {
     const isSectionHeading = intervention.type === 'OrderOfBusiness' || intervention.type === 'SubjectOfBusiness';
@@ -224,35 +249,73 @@ export default function HouseOfCommonsPage() {
     <div className="min-h-screen bg-background">
       <Header />
       <main className="container mx-auto p-4 md:p-6">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Landmark />
-              House of Commons Debates
-            </CardTitle>
-            <CardDescription>
-              Fetch and parse transcripts from a Hansard XML URL.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex flex-col sm:flex-row gap-2">
-              <Input
-                value={url}
-                onChange={(e) => setUrl(e.target.value)}
-                placeholder="Enter Hansard XML URL..."
-                disabled={isLoading}
-                className="flex-1"
-              />
-              <Button onClick={handleLoad} disabled={isLoading}>
-                {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <BookOpen className="mr-2 h-4 w-4" />}
-                Load Transcript
-              </Button>
-            </div>
-             <p className="text-xs text-muted-foreground">
-                Example: <a href={url} target="_blank" rel="noopener noreferrer" className="underline hover:text-primary">{url} <ExternalLink className="inline-block h-3 w-3" /></a>
-            </p>
-          </CardContent>
-        </Card>
+        <div className="grid gap-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Landmark />
+                  House of Commons Debates
+                </CardTitle>
+                <CardDescription>
+                  Tools for fetching and analyzing parliamentary transcripts and data.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <Input
+                    value={url}
+                    onChange={(e) => setUrl(e.target.value)}
+                    placeholder="Enter Hansard XML URL..."
+                    disabled={isLoading}
+                    className="flex-1"
+                  />
+                  <Button onClick={handleLoad} disabled={isLoading}>
+                    {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <BookOpen className="mr-2 h-4 w-4" />}
+                    Load Transcript
+                  </Button>
+                </div>
+                 <p className="text-xs text-muted-foreground">
+                    Example: <a href={url} target="_blank" rel="noopener noreferrer" className="underline hover:text-primary">{url} <ExternalLink className="inline-block h-3 w-3" /></a>
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+                <CardHeader>
+                    <CardTitle className="flex items-center gap-2"><CalendarDays /> Sitting Calendar</CardTitle>
+                    <CardDescription>Check if the House of Commons was in session on a specific day.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <Button onClick={handleSittingDateCheck} disabled={sittingDateCheck.isLoading}>
+                        {sittingDateCheck.isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
+                        Check for Sitting on Sep 17, 2025
+                    </Button>
+                     {sittingDateCheck.isLoading && <p className="mt-4 text-sm text-muted-foreground">Checking calendar...</p>}
+                     {sittingDateCheck.error && <p className="mt-4 text-sm text-destructive">{sittingDateCheck.error}</p>}
+                     {sittingDateCheck.wasSitting !== null && (
+                        <div className="mt-4 space-y-4">
+                            <div>
+                                <h3 className="font-semibold">Did the House sit on September 17, 2025?</h3>
+                                <p className={`text-2xl font-bold ${sittingDateCheck.wasSitting ? 'text-green-600' : 'text-red-600'}`}>
+                                    {sittingDateCheck.wasSitting ? 'Yes' : 'No'}
+                                </p>
+                            </div>
+
+                             <Accordion type="single" collapsible className="w-full">
+                                <AccordionItem value="item-1">
+                                    <AccordionTrigger>View all extracted sitting dates (for testing)</AccordionTrigger>
+                                    <AccordionContent>
+                                        <pre className="mt-2 bg-muted p-4 rounded-md text-xs max-h-60 overflow-auto">
+                                            {JSON.stringify(sittingDateCheck.allDates, null, 2)}
+                                        </pre>
+                                    </AccordionContent>
+                                </AccordionItem>
+                            </Accordion>
+                        </div>
+                     )}
+                </CardContent>
+            </Card>
+        </div>
         
         {data && (
             <Card className="mt-6">
