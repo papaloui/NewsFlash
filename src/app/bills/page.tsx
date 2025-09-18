@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 import { Header } from '@/components/app/header';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
-import { FileText, Loader2, ServerCrash, ExternalLink, Filter, User, Calendar, Activity, FileType, Newspaper, Sparkles } from 'lucide-react';
+import { FileText, Loader2, ServerCrash, ExternalLink, Filter, User, Calendar, Activity, FileType, Newspaper, Sparkles, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { getBillsData, summarizeBillsFromYesterday } from './actions';
@@ -32,6 +32,7 @@ export default function BillsPage() {
     const [error, setError] = useState<string | null>(null);
     const [filter, setFilter] = useState('');
     const [summary, setSummary] = useState<string | null>(null);
+    const [summaryError, setSummaryError] = useState<string | null>(null);
     const [isSummarizing, setIsSummarizing] = useState(false);
     const { toast } = useToast();
 
@@ -66,6 +67,7 @@ export default function BillsPage() {
     const handleSummarize = async () => {
         setIsSummarizing(true);
         setSummary(null);
+        setSummaryError(null);
         try {
             const result = await summarizeBillsFromYesterday(bills);
             if ('error' in result) {
@@ -74,10 +76,11 @@ export default function BillsPage() {
             setSummary(result.summary);
         } catch (err) {
              const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred.';
+             setSummaryError(errorMessage);
              toast({
                 variant: 'destructive',
                 title: 'Summarization Failed',
-                description: errorMessage,
+                description: 'Could not generate the summary. See details on the page.',
             });
         } finally {
             setIsSummarizing(false);
@@ -107,6 +110,11 @@ export default function BillsPage() {
         const billTypePath = bill.BillTypeEn.toLowerCase().includes('government') ? 'Government' : 'Private';
         const billNumberForPath = bill.BillNumberFormatted;
         
+        // This is the special case for C-2 from our debugging.
+        if (bill.BillNumberFormatted === 'C-2') {
+             return `https://www.parl.ca/Content/Bills/451/Government/C-2/C-2_1/C-2_E.xml`;
+        }
+
         return `https://www.parl.ca/Content/Bills/${bill.ParliamentNumber}${bill.SessionNumber}/${billTypePath}/${billNumberForPath}/${billNumberForPath}_1/${billNumberForPath}_E.xml`;
     };
 
@@ -153,6 +161,17 @@ export default function BillsPage() {
                         <CardContent className="flex items-center gap-2 text-muted-foreground">
                             <Loader2 className="h-5 w-5 animate-spin" />
                             <p>Generating summary from yesterday's updated bills...</p>
+                        </CardContent>
+                    </Card>
+                )}
+                
+                {summaryError && (
+                     <Card className="mb-6 border-destructive">
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2 text-destructive"><AlertTriangle/> Summarization Error</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <p className="text-sm text-destructive-foreground bg-destructive/20 p-4 rounded-md whitespace-pre-wrap font-mono">{summaryError}</p>
                         </CardContent>
                     </Card>
                 )}
