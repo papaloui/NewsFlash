@@ -26,9 +26,9 @@ export async function getAndSummarizeGazette(): Promise<GazetteResult> {
         const document = dom.window.document;
 
         const links = Array.from(document.querySelectorAll('a'));
-        // Find the link that contains "Part I, volume" in its text and ".pdf" in its href
+        // Find the link that contains "number 37" in its text and ".pdf" in its href
         const gazetteLinkElement = links.find(link => 
-            link.textContent?.includes('Part I, volume') && link.href.includes('.pdf')
+            link.textContent?.includes('number 37') && link.href.includes('.pdf')
         );
 
         if (!gazetteLinkElement || !gazetteLinkElement.href) {
