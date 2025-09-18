@@ -66,6 +66,7 @@ export default function HouseOfCommonsPage() {
   const [automationStatus, setAutomationStatus] = useState<AutomationStatus>({ step: 'idle', message: 'Ready to start.' });
 
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const hasTriggeredAutoSummary = useRef(false);
 
   const getFullTranscriptText = useCallback(() => {
     if (!data) return '';
@@ -117,7 +118,7 @@ export default function HouseOfCommonsPage() {
     setFullSummary(null);
     setSummaryError(null);
     setJobId(null);
-    setAutomationStatus({ step: 'summarizing', message: 'Generating full debate summary. This may take a few minutes...' });
+    setAutomationStatus(prev => ({ ...prev, step: 'summarizing', message: 'Generating full debate summary. This may take a few minutes...' }));
     if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
 
     try {
@@ -136,7 +137,8 @@ export default function HouseOfCommonsPage() {
     setIsLoading(true);
     setData(null);
     setFullSummary(null);
-    setAutomationStatus({ step: 'loading_transcript', message: `Loading and parsing transcript from ${loadUrl}` });
+    hasTriggeredAutoSummary.current = false; // Reset auto-summary trigger
+    setAutomationStatus(prev => ({ ...prev, step: 'loading_transcript', message: `Loading and parsing transcript from ${loadUrl}` }));
 
     try {
       const res = await fetch(`/api/hansard?url=${encodeURIComponent(loadUrl)}`);
@@ -149,10 +151,7 @@ export default function HouseOfCommonsPage() {
         throw new Error("Parsing completed, but no interventions were found in the XML.");
       }
       setData(jsonData);
-      // Automatically trigger summarization after loading
-      await sleep(1000); // Wait a second before starting summary
-      await handleFullSummary();
-
+      // Summarization will now be triggered by the useEffect hook watching `data`
     } catch (error) {
       console.error('Failed to get Hansard data:', error);
       const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred.';
@@ -165,7 +164,16 @@ export default function HouseOfCommonsPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [handleFullSummary, toast]);
+  }, [toast]);
+  
+  // This effect hook will trigger the summary *after* the data state has been updated.
+  useEffect(() => {
+    if (data && !isSummarizing && !fullSummary && !hasTriggeredAutoSummary.current) {
+        hasTriggeredAutoSummary.current = true; // Prevent re-triggering on hot-reloads
+        handleFullSummary();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data]);
   
   const runAutomatedDebateFetch = useCallback(async () => {
     const dateToCheck = '2025-09-17';
@@ -359,7 +367,7 @@ export default function HouseOfCommonsPage() {
             </Card>
         )}
 
-        {isSummarizing && (
+        {isSummarizing && !fullSummary && (
             <div className="mt-6 flex justify-center items-center gap-2 text-muted-foreground">
                 <Loader2 className="h-5 w-5 animate-spin" />
                 <span>Summarization in progress. This may take several minutes.</span>
@@ -479,3 +487,5 @@ export default function HouseOfCommonsPage() {
     </div>
   );
 }
+
+    
