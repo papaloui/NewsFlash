@@ -103,6 +103,12 @@ export default function BillsPage() {
         return 'outline';
     }
 
+    const getBillTextUrl = (bill: Bill) => {
+        const billTypePath = bill.BillTypeEn.toLowerCase().includes('government') ? 'Government' : 'Private';
+        const billNumberClean = bill.BillNumberFormatted.replace('-', '');
+        return `https://www.parl.ca/Content/Bills/${bill.ParliamentNumber}${bill.SessionNumber}/${billTypePath}/${bill.BillNumberFormatted}/${billNumberClean}_1/${billNumberClean}_E.xml`;
+    };
+
 
     return (
         <div className="min-h-screen bg-background">
@@ -222,7 +228,7 @@ export default function BillsPage() {
                                     </Button>
                                     <Button asChild variant="secondary" size="sm" className="w-full">
                                         <a 
-                                            href={`https://www.parl.ca/Content/Bills/${bill.ParliamentNumber}${bill.SessionNumber}/Private/${bill.BillNumberFormatted.replace('-', '')}/${bill.BillNumberFormatted.replace('-', '')}_1/${bill.BillNumberFormatted.replace('-', '')}_E.xml`} 
+                                            href={getBillTextUrl(bill)} 
                                             target="_blank" 
                                             rel="noopener noreferrer"
                                         >
@@ -244,3 +250,5 @@ export default function BillsPage() {
         </div>
     );
 }
+
+    
