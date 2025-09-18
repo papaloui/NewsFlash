@@ -54,7 +54,7 @@ export default function BillsPage() {
                 if (data.error) {
                     throw new Error(data.error);
                 }
-                // The data is nested under a 'Bills' key
+                // The data is now nested under a 'Bills' key from our parser
                 setBills(data.Bills || []);
             } catch (err) {
                 const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred.';
@@ -124,7 +124,7 @@ export default function BillsPage() {
                             <AccordionContent>
                                 <Alert>
                                     <Info className="h-4 w-4" />
-                                    <AlertTitle>Scraping Log</AlertTitle>
+                                    <AlertTitle>Scraping & Parsing Log</AlertTitle>
                                     <AlertDescription>
                                         <ul className="list-disc pl-5 mt-2 space-y-1 text-xs">
                                             {debugInfo.map((msg, index) => <li key={index}>{msg}</li>)}
@@ -136,7 +136,7 @@ export default function BillsPage() {
                                         <Info className="h-4 w-4" />
                                         <AlertTitle>Raw HTML Source</AlertTitle>
                                         <AlertDescription>
-                                            <p className="mb-2 text-xs">The following HTML was scraped. The scraper failed to find the JSON link within this content.</p>
+                                            <p className="mb-2 text-xs">The following HTML was scraped. The scraper may have failed to find the data link within this content.</p>
                                             <pre className="mt-2 whitespace-pre-wrap text-xs bg-muted p-4 rounded-md max-h-[400px] overflow-auto">
                                                 {rawHtml}
                                             </pre>
