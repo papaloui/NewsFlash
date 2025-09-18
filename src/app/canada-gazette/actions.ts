@@ -2,7 +2,6 @@
 'use server';
 
 import { JSDOM } from 'jsdom';
-import pdf from 'pdf-parse';
 import { summarizeGazette, type SummarizeGazetteInput } from '@/ai/flows/summarize-gazette';
 
 interface GazetteResult {
@@ -47,16 +46,11 @@ export async function getAndSummarizeGazette(): Promise<GazetteResult> {
         }
         const pdfBuffer = await pdfResponse.arrayBuffer();
 
-        // 3. Parse the PDF to extract text
-        const pdfData = await pdf(pdfBuffer);
-        const pdfText = pdfData.text;
-
-        if (!pdfText || pdfText.length < 500) {
-            throw new Error('Could not extract a meaningful amount of text from the PDF.');
-        }
+        // 3. Convert PDF buffer to a Base64 data URI
+        const pdfDataUri = `data:application/pdf;base64,${Buffer.from(pdfBuffer).toString('base64')}`;
 
         // 4. Summarize the text with Genkit
-        const aiInput: SummarizeGazetteInput = { gazetteText: pdfText.substring(0, 800000) }; // Use a large chunk of the text
+        const aiInput: SummarizeGazetteInput = { gazetteDataUri: pdfDataUri };
         const summaryResult = await summarizeGazette(aiInput);
 
         return { link: pdfAbsoluteUrl, summary: summaryResult.summary };

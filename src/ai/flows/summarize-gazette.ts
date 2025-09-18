@@ -1,9 +1,9 @@
 
 'use server';
 /**
- * @fileOverview Summarizes the content of the Canada Gazette.
+ * @fileOverview Summarizes the content of the Canada Gazette PDF.
  *
- * - summarizeGazette - A function that takes text content and returns a summary.
+ * - summarizeGazette - A function that takes a PDF data URI and returns a summary.
  * - SummarizeGazetteInput - The input type for the function.
  * - SummarizeGazetteOutput - The return type for the function.
  */
@@ -12,7 +12,7 @@ import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 
 const SummarizeGazetteInputSchema = z.object({
-    gazetteText: z.string().describe('The full text content of the Canada Gazette PDF.'),
+    gazetteDataUri: z.string().describe("A PDF of the Canada Gazette, as a data URI that must include a MIME type and use Base64 encoding. Expected format: 'data:application/pdf;base64,<encoded_data>'."),
 });
 export type SummarizeGazetteInput = z.infer<typeof SummarizeGazetteInputSchema>;
 
@@ -33,13 +33,13 @@ const prompt = ai.definePrompt({
         model: 'googleai/gemini-1.5-flash',
         maxOutputTokens: 4096,
     },
-    prompt: `You are an expert governmental analyst. You have been provided with the full text of Part I of the Canada Gazette.
+    prompt: `You are an expert governmental analyst. You have been provided with a PDF of Part I of the Canada Gazette.
 Your task is to create a clear and concise summary of the most important proposed regulations, notices, and orders.
 Focus on items that have a broad impact on the public or specific industries. For each key item, briefly explain what it is about.
 
-Here is the full text:
+Here is the document:
 ---
-{{{gazetteText}}}
+{{media url=gazetteDataUri}}
 ---
 `,
 });
