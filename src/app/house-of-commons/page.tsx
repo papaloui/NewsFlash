@@ -167,6 +167,8 @@ export default function HouseOfCommonsPage() {
   }, [toast]);
   
   // This effect hook will trigger the summary *after* the data state has been updated.
+  // Temporarily disabled to debug 429 errors
+  /*
   useEffect(() => {
     if (data && !isSummarizing && !fullSummary && !hasTriggeredAutoSummary.current) {
         hasTriggeredAutoSummary.current = true; // Prevent re-triggering on hot-reloads
@@ -174,6 +176,7 @@ export default function HouseOfCommonsPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data]);
+  */
   
   const runAutomatedDebateFetch = useCallback(async () => {
     const dateToCheck = '2025-09-17';

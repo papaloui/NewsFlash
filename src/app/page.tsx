@@ -153,7 +153,7 @@ export default function Home() {
 
         // Start digest summarization now that all bodies are fetched
         if(articlesWithBodies.length > 0) {
-            handleSummarizeDigest(articlesWithBodies);
+            // handleSummarizeDigest(articlesWithBodies);
         }
 
     } catch (error) {
