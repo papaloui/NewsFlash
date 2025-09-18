@@ -34,17 +34,19 @@ async function getLegisInfoJsonUrl(): Promise<{ url: string | null, debug: strin
         debug.push('Found LegisInfo section. Searching for JSON link within it.');
 
         const links = Array.from(legisInfoSection.querySelectorAll('a'));
-        const jsonLink = links.find(link => link.textContent?.trim().toUpperCase() === 'JSON');
+        // Find the link where the href specifically contains the path to the bills JSON data.
+        const jsonLink = links.find(link => link.href.includes('legisinfo/en/bills/json'));
 
         if (jsonLink && jsonLink.href) {
-            debug.push(`Found link element with text "JSON". Href: ${jsonLink.href}`);
+            debug.push(`Found link element with href containing "legisinfo/en/bills/json". Href: ${jsonLink.href}`);
+            // The href should be absolute, but we resolve it just in case it's relative.
             const absoluteUrl = new URL(jsonLink.href, pageUrl).toString();
             debug.push(`Step 3: Resolved absolute URL to: ${absoluteUrl}`);
             jsonUrlCache = absoluteUrl; // Cache the found URL
             return { url: absoluteUrl, debug };
         }
 
-        throw new Error('Could not find the JSON download link in the LegisInfo section.');
+        throw new Error('Could not find the JSON download link in the LegisInfo section. Looked for an `a` tag with an `href` containing "legisinfo/en/bills/json".');
 
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
