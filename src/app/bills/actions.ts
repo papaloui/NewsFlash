@@ -50,8 +50,25 @@ export async function getBillsData(): Promise<any> {
     }
 }
 
+function getBillTextUrl(bill: any): string {
+    const parliamentSession = `${bill.ParliamentNumber}${bill.SessionNumber}`;
+    const billNumberClean = bill.BillNumberFormatted.replace('-', '');
+    let billTypePath = 'Private'; // Default to Private
+
+    if (bill.BillTypeEn.toLowerCase().includes('government')) {
+        billTypePath = 'Government';
+    } else if (bill.BillTypeEn.toLowerCase().includes('private member')) {
+        billTypePath = 'Private';
+    } else if (bill.BillTypeEn.toLowerCase().includes('senate public bill')) {
+        // Senate bills might have a different structure, but we'll try 'Private' as a common case
+        billTypePath = 'Private';
+    }
+
+    return `https://www.parl.ca/Content/Bills/${parliamentSession}/${billTypePath}/${billNumberClean}/${billNumberClean}_1/${billNumberClean}_E.xml`;
+}
+
 async function getBillText(bill: any): Promise<string> {
-    const url = `https://www.parl.ca/Content/Bills/${bill.ParliamentNumber}${bill.SessionNumber}/Private/${bill.BillNumberFormatted.replace('-', '')}/${bill.BillNumberFormatted.replace('-', '')}_1/${bill.BillNumberFormatted.replace('-', '')}_E.xml`;
+    const url = getBillTextUrl(bill);
     try {
         const response = await fetch(url);
         if (!response.ok) {
