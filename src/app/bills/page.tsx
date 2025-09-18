@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 import { Header } from '@/components/app/header';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
-import { FileText, Loader2, ServerCrash, ExternalLink, Filter, User, Calendar, Activity } from 'lucide-react';
+import { FileText, Loader2, ServerCrash, ExternalLink, Filter, User, Calendar, Activity, FileType } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { getBillsData } from './actions';
@@ -157,11 +157,18 @@ export default function BillsPage() {
                                         <span className="font-semibold">Type:</span> {bill.BillTypeEn}
                                     </p>
                                 </CardContent>
-                                <CardFooter>
+                                <CardFooter className="flex-col sm:flex-row gap-2 items-center">
                                     <Button asChild variant="outline" size="sm" className="w-full">
-                                        <a href={`https://www.parl.ca/legisinfo/en/bill/${bill.ParliamentNumber}-${bill.SessionNumber}/${bill.BillNumberFormatted.replace(/-/g,'')}`} target="_blank" rel="noopener noreferrer">
+                                        <a href={`https://www.parl.ca/legisinfo/en/bill/${bill.ParliamentNumber}-${bill.SessionNumber}/${bill.BillNumberFormatted.toLowerCase()}`} target="_blank" rel="noopener noreferrer">
                                             View on PARL.ca
                                             <ExternalLink className="ml-2 h-4 w-4" />
+                                        </a>
+
+                                    </Button>
+                                    <Button asChild variant="secondary" size="sm" className="w-full">
+                                         <a href={`https://www.parl.ca/Content/Bills/${bill.ParliamentNumber}${bill.SessionNumber}/Private/${bill.BillNumberFormatted}/${bill.BillNumberFormatted}_1/${bill.BillNumberFormatted}_E.xml`} target="_blank" rel="noopener noreferrer">
+                                            View Bill Text
+                                            <FileType className="ml-2 h-4 w-4" />
                                         </a>
                                     </Button>
                                 </CardFooter>
