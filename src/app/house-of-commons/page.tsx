@@ -5,7 +5,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { Header } from '@/components/app/header';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
-import { Landmark, Loader2, Search, BookOpen, Clock, Languages, User, FileText as FileTextIcon, ExternalLink, ScrollText, Bug, Hourglass, CalendarDays, Link as LinkIcon, FileCode } from 'lucide-react';
+import { Landmark, Loader2, Search, BookOpen, Clock, Languages, User, FileText as FileTextIcon, ExternalLink, ScrollText, Bug, Hourglass } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -150,6 +150,7 @@ export default function HouseOfCommonsPage() {
       }
       setData(jsonData);
       // Automatically trigger summarization after loading
+      await sleep(1000); // Wait a second before starting summary
       await handleFullSummary();
 
     } catch (error) {
@@ -190,6 +191,7 @@ export default function HouseOfCommonsPage() {
                 if (xmlUrl) {
                     setAutomationStatus({ step: 'found_xml_url', message: 'Found XML link. Starting transcript load.' });
                     setUrl(xmlUrl);
+                    await sleep(1000); // Wait a second before loading
                     await handleLoad(xmlUrl); // Automatically load
                 } else {
                     throw new Error('Could not find the XML link on the Hansard page.');
@@ -478,4 +480,5 @@ export default function HouseOfCommonsPage() {
   );
 }
 
+    
     
