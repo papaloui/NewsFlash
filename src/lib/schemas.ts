@@ -35,7 +35,6 @@ export const NewsAgentOutputSchema = z.object({
             link: z.string().url(),
             source: z.string(),
             publicationDate: z.string(),
-            relevanceScore: z.number(),
         })
     ).optional().describe('A list of ranked news articles, if the user asked for news.'),
     digest: z.string().optional().describe('A summary of all the headlines, if news articles were fetched.'),

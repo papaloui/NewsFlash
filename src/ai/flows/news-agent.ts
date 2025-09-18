@@ -6,7 +6,7 @@
  */
 
 import { ai } from '@/ai/genkit';
-import { z } from 'genkit';
+import { z } from 'zod';
 import { searchNews } from '@/services/news-api';
 import { searchWeb, type WebSearchResult } from '@/services/web-search';
 import { summarizeHeadlinesDigest } from './summarize-headlines-digest';
@@ -54,7 +54,6 @@ const agentPrompt = ai.definePrompt({
     
     - Your primary function is to provide users with news. If the user's query is about news (e.g., "latest on AI", "business news", "top headlines"), use the searchNews tool.
     - After fetching news, ALWAYS generate a brief, 1-2 sentence digest of the top 10 headlines.
-    - When searching for news, you must rank the articles by relevance to the user's query and set the relevanceScore for each article. A score of 1 is most relevant.
     - If the user asks a general knowledge question (e.g., "when was X invented?"), use the searchWeb tool. Synthesize the web search results into a concise answer for the 'response' field.
     - If you use the searchNews tool, do not populate the 'response' field. The UI will display the articles.
     - If you use the searchWeb tool, populate the 'response' field with the answer and do not return any articles.
@@ -92,7 +91,7 @@ export async function newsAgent(input: NewsAgentInput): Promise<NewsAgentOutput>
 
   if (output?.articles && output.articles.length > 0) {
     // Take only the top 10 headlines for the digest
-    const headlines = output.articles.slice(0, 10).map(a => a.headline);
+    const headlines = output.articles.slice(0, 10).map(a => ({ headline: a.headline, body: a.summary }));
     if(headlines.length > 0) {
       const digestSummary = await summarizeHeadlinesDigest(headlines);
       output.digest = digestSummary.digest;
