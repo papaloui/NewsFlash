@@ -5,37 +5,27 @@ import { useState } from 'react';
 import { Header } from '@/components/app/header';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Newspaper, Loader2, ServerCrash, Sparkles, FileCode } from 'lucide-react';
+import { Newspaper, Loader2, ServerCrash, Sparkles, ExternalLink, Link as LinkIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { getAndSummarizeOntarioGazette } from './actions';
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { Badge } from '@/components/ui/badge';
-
-interface DebugInfo {
-    step: string;
-    url: string;
-    html: string;
-}
 
 export default function OntarioGazettePage() {
     const [summary, setSummary] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [debugInfo, setDebugInfo] = useState<DebugInfo | null>(null);
+    const [sourceUrl, setSourceUrl] = useState<string | null>(null);
     const { toast } = useToast();
 
     const handleFetch = async () => {
         setIsLoading(true);
         setError(null);
         setSummary(null);
-        setDebugInfo(null);
+        setSourceUrl(null);
 
         try {
             const result = await getAndSummarizeOntarioGazette();
+            setSourceUrl(result.sourceUrl || null);
             if (result.error) {
-                if (result.debugInfo) {
-                    setDebugInfo(result.debugInfo);
-                }
                 throw new Error(result.error);
             }
             setSummary(result.summary || null);
@@ -77,7 +67,7 @@ export default function OntarioGazettePage() {
                 {isLoading && (
                     <div className="flex justify-center items-center gap-2 text-muted-foreground">
                         <Loader2 className="h-8 w-8 animate-spin" />
-                        <span className="text-lg">Fetching, parsing, and summarizing... This multi-step process may take a moment.</span>
+                        <span className="text-lg">Fetching PDF and summarizing... This may take a moment.</span>
                     </div>
                 )}
 
@@ -88,23 +78,8 @@ export default function OntarioGazettePage() {
                         </CardHeader>
                         <CardContent>
                           <p className="text-destructive/90 font-semibold">Error Message: <span className="font-normal text-muted-foreground">{error}</span></p>
-                          {debugInfo && (
-                            <Accordion type="single" collapsible className="w-full mt-4">
-                                <AccordionItem value="debug-info">
-                                    <AccordionTrigger>
-                                        <span className="flex items-center gap-2"><FileCode className="h-4 w-4" /> View Debugging Information</span>
-                                    </AccordionTrigger>
-                                    <AccordionContent className="space-y-4 pt-2">
-                                        <p className="text-sm">The process failed at <Badge variant="secondary">Step {debugInfo.step}</Badge>. The following URL was being processed:</p>
-                                        <pre className="p-2 bg-muted/50 rounded-md text-xs overflow-auto border"><code>{debugInfo.url}</code></pre>
-                                        
-                                        <h4 className="font-semibold pt-4 border-t">Raw HTML Content:</h4>
-                                        <pre className="p-4 bg-muted/50 rounded-md text-xs overflow-auto max-h-96 border">
-                                            <code>{debugInfo.html}</code>
-                                        </pre>
-                                    </AccordionContent>
-                                </AccordionItem>
-                            </Accordion>
+                           {sourceUrl && (
+                             <p className="text-sm text-muted-foreground mt-2">Attempted to fetch from: <a href={sourceUrl} target="_blank" rel="noopener noreferrer" className="underline">{sourceUrl}</a></p>
                           )}
                         </CardContent>
                       </Card>
@@ -114,6 +89,15 @@ export default function OntarioGazettePage() {
                     <Card className="mb-6">
                         <CardHeader>
                             <CardTitle>AI Summary of the Ontario Gazette</CardTitle>
+                             {sourceUrl && (
+                               <CardDescription className="flex items-center gap-2 pt-2">
+                                <LinkIcon className="h-4 w-4"/>
+                                <a href={sourceUrl} target="_blank" rel="noopener noreferrer" className="hover:underline">
+                                    Source PDF
+                                    <ExternalLink className="inline-block ml-1 h-3 w-3" />
+                                </a>
+                               </CardDescription>
+                            )}
                         </CardHeader>
                         <CardContent>
                             <p className="whitespace-pre-wrap font-body text-sm leading-relaxed">{summary}</p>
