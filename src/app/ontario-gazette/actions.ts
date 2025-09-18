@@ -14,8 +14,7 @@ const headers = {
 };
 
 export async function getAndSummarizeOntarioGazette(): Promise<GazetteResult> {
-    // The multi-step scraping was consistently blocked.
-    // Using the direct PDF URL is a more robust solution.
+    // Using the direct PDF URL is a more robust solution than multi-step scraping.
     const pdfUrl = 'https://www.ontario.ca/files/2025-09/ontariogazette_158-37.pdf';
 
     try {
@@ -23,11 +22,11 @@ export async function getAndSummarizeOntarioGazette(): Promise<GazetteResult> {
         console.log(`[Ontario Gazette] Fetching PDF directly from: ${pdfUrl}`);
         const pdfResponse = await fetch(pdfUrl, { headers });
         if (!pdfResponse.ok) {
-            throw new Error(`Failed to fetch the final PDF. Status: ${pdfResponse.status}`);
+            throw new Error(`Failed to fetch the PDF from ${pdfUrl}. Status: ${pdfResponse.status}`);
         }
         const pdfBuffer = await pdfResponse.arrayBuffer();
 
-        // Step 2: Summarize
+        // Step 2: Summarize by passing the PDF data directly to the AI model
         console.log('[Ontario Gazette] Converting to data URI and sending for summarization.');
         const pdfDataUri = `data:application/pdf;base64,${Buffer.from(pdfBuffer).toString('base64')}`;
         const aiInput: SummarizeOntarioGazetteInput = { gazetteDataUri: pdfDataUri };
