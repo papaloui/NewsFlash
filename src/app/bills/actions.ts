@@ -97,6 +97,11 @@ export async function summarizeBillsFromYesterday(allBills: any[]): Promise<{ su
              return { error: `Could not retrieve the text for any of the ${billsFromYesterday.length} bills updated yesterday.` };
         }
         
+        // DEBUG: Log the data being sent to the AI
+        console.log("===== Summarize Bills Input (Server Log) =====");
+        console.log(JSON.stringify(billsWithText, null, 2));
+        console.log("==============================================");
+        
         const result = await summarizeBills(billsWithText);
 
         return result;

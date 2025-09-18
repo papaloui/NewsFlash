@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview A conversational AI agent that can search for news and browse the web.
@@ -45,8 +46,7 @@ const agentTools: Record<string, any> = {
 };
 
 
-const agentPrompt = ai.definePrompt({
-    name: 'newsAgentPrompt',
+const agentPrompt = ai.prompt('newsAgentPrompt', {
     input: { schema: NewsAgentInputSchema },
     output: { schema: NewsAgentOutputSchema },
     tools: [newsSearchTool, webSearchTool],
@@ -65,12 +65,16 @@ const agentPrompt = ai.definePrompt({
 
 
 export async function newsAgent(input: NewsAgentInput): Promise<NewsAgentOutput> {
-  const llmResponse = await agentPrompt(input);
+  const llmResponse = await agentPrompt.generate({
+    input: input,
+  });
   let toolOutputs: any[] = [];
-  
-  if (llmResponse.toolCalls && llmResponse.toolCalls.length > 0) {
+
+  const toolCalls = llmResponse.toolCalls();
+
+  if (toolCalls && toolCalls.length > 0) {
       toolOutputs = await Promise.all(
-        llmResponse.toolCalls.map(async (toolCall) => {
+        toolCalls.map(async (toolCall) => {
             const tool = agentTools[toolCall.name];
             if (!tool) throw new Error(`Unknown tool: ${toolCall.name}`);
             const output = await tool.run(toolCall.input);
@@ -85,9 +89,26 @@ export async function newsAgent(input: NewsAgentInput): Promise<NewsAgentOutput>
      toolOutputs.push({ call: { name: 'searchNews', input: { query: input.query } }, output });
   }
   
-  const finalResponse = await agentPrompt(input, { toolResponse: toolOutputs });
+  const finalResponse = await agentPrompt.generate({
+    input: input,
+    history: [
+        llmResponse.request,
+        llmResponse.response(),
+        ...toolOutputs.map(t => ({
+            role: 'tool',
+            content: [
+                {
+                    toolResponse: {
+                        name: t.call.name,
+                        output: t.output
+                    }
+                }
+            ]
+        }))
+    ]
+  });
   
-  const output = finalResponse.output;
+  const output = finalResponse.output();
 
   if (output?.articles && output.articles.length > 0) {
     // Take only the top 10 headlines for the digest
