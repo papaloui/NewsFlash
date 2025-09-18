@@ -38,18 +38,19 @@ async function getLegisInfoDataUrl(): Promise<{ url: string | null, debug: strin
         debug.push('Found LegisInfo section. Searching for XML link within it.');
 
         const links = Array.from(legisInfoSection.querySelectorAll('a'));
-        const xmlLink = links.find(link => link.href.includes('legisinfo/en/bills/xml'));
+        const xmlLink = links.find(link => link.textContent?.trim().includes('XML'));
 
         if (xmlLink && xmlLink.href) {
-            debug.push(`Found link element with href containing "legisinfo/en/bills/xml". Href: ${xmlLink.href}`);
-            const absoluteUrl = new URL(xmlLink.href, pageUrl).toString();
+            debug.push(`Found link element with text content "XML". Relative href: ${xmlLink.href}`);
+            // The link is relative, so we need to construct the absolute URL.
+            const absoluteUrl = new URL(xmlLink.href, 'https://www.ourcommons.ca').toString();
             debug.push(`Step 3: Resolved absolute URL to: ${absoluteUrl}`);
             dataUrlCache = absoluteUrl; 
             return { url: absoluteUrl, debug };
         }
 
         debug.push('Error: Could not find the XML download link. Review the raw HTML below.');
-        throw new Error('Could not find the XML download link in the LegisInfo section. Looked for an `a` tag with an `href` containing "legisinfo/en/bills/xml".');
+        throw new Error('Could not find the XML download link in the LegisInfo section. Looked for an `a` tag with text content containing "XML".');
 
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
