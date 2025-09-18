@@ -42,6 +42,10 @@ const summarizeBillsPrompt = ai.definePrompt({
     name: 'summarizeBillsPrompt',
     input: { schema: SummarizeBillsInputSchema },
     output: { schema: SummarizeBillsOutputSchema },
+    config: {
+        model: 'googleai/gemini-1.5-flash-preview',
+        maxOutputTokens: 8192,
+    },
     prompt: promptTemplate,
 });
 
