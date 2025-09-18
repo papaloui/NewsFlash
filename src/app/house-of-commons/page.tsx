@@ -479,6 +479,3 @@ export default function HouseOfCommonsPage() {
     </div>
   );
 }
-
-    
-    
