@@ -5,11 +5,12 @@ import { useState, useEffect } from 'react';
 import { Header } from '@/components/app/header';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
-import { FileText, Loader2, ServerCrash, ExternalLink, Filter } from 'lucide-react';
+import { FileText, Loader2, ServerCrash, ExternalLink, Filter, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { getBillsData } from './actions';
 import { Input } from '@/components/ui/input';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 interface Bill {
     Parliament: number;
@@ -30,6 +31,7 @@ export default function BillsPage() {
     const [bills, setBills] = useState<Bill[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [debugInfo, setDebugInfo] = useState<string[]>([]);
     const [filter, setFilter] = useState('');
     const { toast } = useToast();
 
@@ -37,8 +39,10 @@ export default function BillsPage() {
         async function loadData() {
             setIsLoading(true);
             setError(null);
+            setDebugInfo([]);
             try {
                 const data = await getBillsData();
+                setDebugInfo(data.debug || []);
                 if (data.error) {
                     throw new Error(data.error);
                 }
@@ -97,10 +101,24 @@ export default function BillsPage() {
                                 value={filter}
                                 onChange={(e) => setFilter(e.target.value)}
                                 className="pl-10 w-full"
+                                disabled={isLoading || !!error}
                             />
                         </div>
                     </CardContent>
                 </Card>
+
+                {debugInfo.length > 0 && (
+                    <Alert className="mt-6">
+                        <Info className="h-4 w-4" />
+                        <AlertTitle>Debugging Information</AlertTitle>
+                        <AlertDescription>
+                            <ul className="list-disc pl-5 mt-2 space-y-1 text-xs">
+                                {debugInfo.map((msg, index) => <li key={index}>{msg}</li>)}
+                            </ul>
+                        </AlertDescription>
+                    </Alert>
+                )}
+
 
                 {isLoading && (
                     <div className="mt-6 flex justify-center items-center gap-2 text-muted-foreground">
@@ -109,14 +127,14 @@ export default function BillsPage() {
                     </div>
                 )}
 
-                {error && (
+                {error && !isLoading && (
                      <Card className="mt-6 border-destructive">
                         <CardHeader>
                           <CardTitle className='text-destructive flex items-center gap-2'><ServerCrash/> Data Unavailable</CardTitle>
                         </CardHeader>
                         <CardContent>
                           <p className="text-destructive/90">{error}</p>
-                          <p className="text-sm text-muted-foreground mt-2">Could not retrieve the bill information from the parliamentary source. Please try again later.</p>
+                          <p className="text-sm text-muted-foreground mt-2">Could not retrieve the bill information from the parliamentary source. Please check the debug logs above and try again later.</p>
                         </CardContent>
                       </Card>
                 )}
@@ -154,7 +172,7 @@ export default function BillsPage() {
                                 </CardFooter>
                             </Card>
                         ))}
-                         {filteredBills.length === 0 && (
+                         {filteredBills.length === 0 && bills.length > 0 && (
                             <div className="text-center py-10 col-span-full">
                                 <p className="text-muted-foreground">No bills match your filter.</p>
                             </div>
