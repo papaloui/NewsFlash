@@ -1,4 +1,4 @@
-import { Rss, Landmark, FileText, BookMarked } from 'lucide-react';
+import { Rss, Landmark, FileText, BookMarked, Building } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '../ui/button';
 import { Separator } from '../ui/separator';
@@ -27,6 +27,12 @@ export function Header() {
               <Link href="/bills">
                 <FileText className="mr-2 h-4 w-4" />
                 Bills
+              </Link>
+            </Button>
+            <Button asChild variant="outline">
+              <Link href="/ontario-bills">
+                <Building className="mr-2 h-4 w-4" />
+                Ontario Bills
               </Link>
             </Button>
              <Button asChild variant="outline">
