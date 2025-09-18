@@ -12,6 +12,10 @@ export async function getLatestGazettePdfLink(): Promise<{ link?: string; error?
             throw new Error(`Failed to fetch Canada Gazette index: ${response.statusText}`);
         }
         const html = await response.text();
+        console.log("--- Fetched Canada Gazette HTML ---");
+        console.log(html);
+        console.log("---------------------------------");
+        
         const dom = new JSDOM(html);
         const document = dom.window.document;
 
@@ -27,7 +31,8 @@ export async function getLatestGazettePdfLink(): Promise<{ link?: string; error?
             return { link: absoluteLink };
         }
 
-        return { error: 'Could not find the target PDF link on the page. The page structure might have changed.' };
+        const errorMessage = 'Could not find the target PDF link on the page. The page structure may have changed. Review the HTML logged to the server console.';
+        return { error: errorMessage };
 
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
