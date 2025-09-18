@@ -63,7 +63,7 @@ export default function HouseOfCommonsPage() {
   const [isSummarizing, setIsSummarizing] = useState(false);
   const [summaryError, setSummaryError] = useState<string | null>(null);
   const [jobId, setJobId] = useState<string | null>(null);
-  const [automationStatus, setAutomationStatus] = useState<AutomationStatus>({ step: 'idle', message: 'Ready to start.' });
+  const [automationStatus, setAutomationStatus] = useState<AutomationStatus>({ step: 'idle', message: 'Automation paused. Load manually.' });
 
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const hasTriggeredAutoSummary = useRef(false);
@@ -218,10 +218,11 @@ export default function HouseOfCommonsPage() {
   }, [handleLoad]);
 
 
-  useEffect(() => {
-    runAutomatedDebateFetch();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // Temporarily disabled as per user request
+  // useEffect(() => {
+  //   runAutomatedDebateFetch();
+  //   // eslint-disable-next-line react-hooks/exhaustive-deps
+  // }, []);
 
   // Cleanup interval on component unmount
   useEffect(() => {
@@ -306,7 +307,7 @@ export default function HouseOfCommonsPage() {
                   House of Commons Debates
                 </CardTitle>
                 <CardDescription>
-                  Tools for fetching and analyzing parliamentary transcripts and data. This page now automatically fetches the previous day's debates.
+                  Tools for fetching and analyzing parliamentary transcripts and data. The automatic fetch for the previous day's debates is currently paused.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -328,7 +329,7 @@ export default function HouseOfCommonsPage() {
                   <Input
                     value={url}
                     onChange={(e) => setUrl(e.target.value)}
-                    placeholder="Enter Hansard XML URL or let automation run..."
+                    placeholder="Enter Hansard XML URL..."
                     disabled={isLoading || isSummarizing}
                     className="flex-1"
                   />

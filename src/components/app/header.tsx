@@ -1,6 +1,7 @@
-import { Rss, Landmark } from 'lucide-react';
+import { Rss, Landmark, FileText } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '../ui/button';
+import { Separator } from '../ui/separator';
 
 export function Header() {
   return (
@@ -15,12 +16,20 @@ export function Header() {
           </h1>
         </Link>
 
-        <Button asChild variant="outline">
-          <Link href="/house-of-commons">
-            <Landmark className="mr-2 h-4 w-4" />
-            House of Commons
-          </Link>
-        </Button>
+        <nav className="flex items-center gap-2">
+            <Button asChild variant="outline">
+              <Link href="/house-of-commons">
+                <Landmark className="mr-2 h-4 w-4" />
+                House of Commons
+              </Link>
+            </Button>
+             <Button asChild variant="outline">
+              <Link href="/bills">
+                <FileText className="mr-2 h-4 w-4" />
+                Bills
+              </Link>
+            </Button>
+        </nav>
       </div>
     </header>
   );
