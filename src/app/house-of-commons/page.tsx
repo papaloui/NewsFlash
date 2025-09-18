@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Header } from '@/components/app/header';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
@@ -43,14 +43,10 @@ interface FullSummary {
   debugInfo?: DebugInfo;
 }
 
-interface SittingDateCheck {
-    isLoading: boolean;
-    error: string | null;
-    allDates: string[];
-    wasSitting: boolean | null;
-    hansardUrl: string | null;
-    isUrlLoading: boolean;
-    isXmlLoading: boolean;
+interface AutomationStatus {
+    step: 'idle' | 'checking_calendar' | 'found_sitting' | 'finding_hansard_url' | 'found_hansard_url' | 'finding_xml_url' | 'found_xml_url' | 'loading_transcript' | 'summarizing' | 'complete' | 'no_sitting' | 'error';
+    message: string;
+    error?: string;
 }
 
 // Helper to introduce a delay
@@ -64,20 +60,158 @@ export default function HouseOfCommonsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const { toast } = useToast();
   const [fullSummary, setFullSummary] = useState<FullSummary | null>(null);
-  const [isSummarizingFull, setIsSummarizingFull] = useState(false);
+  const [isSummarizing, setIsSummarizing] = useState(false);
   const [summaryError, setSummaryError] = useState<string | null>(null);
   const [jobId, setJobId] = useState<string | null>(null);
-  const [sittingDateCheck, setSittingDateCheck] = useState<SittingDateCheck>({
-    isLoading: false,
-    error: null,
-    allDates: [],
-    wasSitting: null,
-    hansardUrl: null,
-    isUrlLoading: false,
-    isXmlLoading: false,
-  });
+  const [automationStatus, setAutomationStatus] = useState<AutomationStatus>({ step: 'idle', message: 'Ready to start.' });
 
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  const getFullTranscriptText = useCallback(() => {
+    if (!data) return '';
+    return data.interventions.map(i => {
+      const speaker = i.speaker || 'Unnamed Speaker';
+      const text = i.content.filter(c => c.type === 'text').map(c => c.value).join(' ');
+      if (i.type === 'OrderOfBusiness' || i.type === 'SubjectOfBusiness') {
+        return `\n--- ${text} ---\n`;
+      }
+      if (!text) return '';
+      return `${speaker}:\n${text}`;
+    }).join('\n\n');
+  }, [data]);
+
+  const pollJobStatus = useCallback((id: string) => {
+    pollingIntervalRef.current = setInterval(async () => {
+      try {
+        const statusResult = await checkSummaryJob(id);
+        if (statusResult.status === 'completed') {
+          setFullSummary(statusResult.result!);
+          setIsSummarizing(false);
+          setJobId(null);
+          setAutomationStatus({ step: 'complete', message: 'Debate summary is complete.' });
+          if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
+        } else if (statusResult.status === 'error') {
+          setSummaryError(`Error generating summary: ${statusResult.error}`);
+          setIsSummarizing(false);
+          setJobId(null);
+          setAutomationStatus({ step: 'error', message: 'Failed during summary generation.', error: statusResult.error });
+          if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
+        }
+        // If 'pending', do nothing and wait for the next interval
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred while polling.';
+        setSummaryError(errorMessage);
+        setIsSummarizing(false);
+        setJobId(null);
+        setAutomationStatus({ step: 'error', message: 'Polling for summary failed.', error: errorMessage });
+        if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
+      }
+    }, 5000); // Poll every 5 seconds
+  }, []);
+
+  const handleFullSummary = useCallback(async () => {
+    const transcriptText = getFullTranscriptText();
+    if (transcriptText.length === 0) return;
+    
+    setIsSummarizing(true);
+    setFullSummary(null);
+    setSummaryError(null);
+    setJobId(null);
+    setAutomationStatus({ step: 'summarizing', message: 'Generating full debate summary. This may take a few minutes...' });
+    if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
+
+    try {
+      const { jobId: newJobId } = await startTranscriptSummary(transcriptText);
+      setJobId(newJobId);
+      pollJobStatus(newJobId);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred.';
+      setSummaryError(`Error starting summary job: ${errorMessage}`);
+      setIsSummarizing(false);
+      setAutomationStatus({ step: 'error', message: 'Failed to start summary job.', error: errorMessage });
+    }
+  }, [getFullTranscriptText, pollJobStatus]);
+
+  const handleLoad = useCallback(async (loadUrl: string) => {
+    setIsLoading(true);
+    setData(null);
+    setFullSummary(null);
+    setAutomationStatus({ step: 'loading_transcript', message: `Loading and parsing transcript from ${loadUrl}` });
+
+    try {
+      const res = await fetch(`/api/hansard?url=${encodeURIComponent(loadUrl)}`);
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || 'Failed to load Hansard data.');
+      }
+      const jsonData: HansardData = await res.json();
+      if (!jsonData.interventions || jsonData.interventions.length === 0) {
+        throw new Error("Parsing completed, but no interventions were found in the XML.");
+      }
+      setData(jsonData);
+      // Automatically trigger summarization after loading
+      await handleFullSummary();
+
+    } catch (error) {
+      console.error('Failed to get Hansard data:', error);
+      const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred.';
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: `Could not load data: ${errorMessage}`,
+      });
+      setAutomationStatus({ step: 'error', message: 'Failed to load transcript.', error: errorMessage });
+    } finally {
+      setIsLoading(false);
+    }
+  }, [handleFullSummary, toast]);
+  
+  const runAutomatedDebateFetch = useCallback(async () => {
+    const dateToCheck = '2025-09-17';
+    try {
+        setAutomationStatus({ step: 'checking_calendar', message: 'Checking parliamentary sitting calendar...' });
+        const dates = await getSittingDates();
+        const wasSitting = dates.includes(dateToCheck);
+
+        if (wasSitting) {
+            setAutomationStatus({ step: 'found_sitting', message: `House was sitting on ${dateToCheck}.` });
+            await sleep(1000);
+
+            setAutomationStatus({ step: 'finding_hansard_url', message: 'Finding Hansard debate link...' });
+            const hansardUrl = await getHansardLinkForDate(dateToCheck);
+
+            if (hansardUrl) {
+                setAutomationStatus({ step: 'found_hansard_url', message: `Found Hansard link.` });
+                await sleep(1000);
+
+                setAutomationStatus({ step: 'finding_xml_url', message: 'Finding XML transcript link...' });
+                const xmlUrl = await getHansardXmlLink(hansardUrl);
+
+                if (xmlUrl) {
+                    setAutomationStatus({ step: 'found_xml_url', message: 'Found XML link. Starting transcript load.' });
+                    setUrl(xmlUrl);
+                    await handleLoad(xmlUrl); // Automatically load
+                } else {
+                    throw new Error('Could not find the XML link on the Hansard page.');
+                }
+            } else {
+                throw new Error('Could not find the Hansard Debates link for the specified date.');
+            }
+        } else {
+            setAutomationStatus({ step: 'no_sitting', message: `House was not sitting on ${dateToCheck}. No further action.` });
+        }
+    } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred.';
+        console.error('Automated debate fetch failed:', error);
+        setAutomationStatus({ step: 'error', message: 'Automated process failed.', error: errorMessage });
+    }
+  }, [handleLoad]);
+
+
+  useEffect(() => {
+    runAutomatedDebateFetch();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Cleanup interval on component unmount
   useEffect(() => {
@@ -88,144 +222,14 @@ export default function HouseOfCommonsPage() {
     };
   }, []);
 
-  const handleLoad = async () => {
-    setIsLoading(true);
-    setData(null);
-    setFullSummary(null);
-    try {
-      const res = await fetch(`/api/hansard?url=${encodeURIComponent(url)}`);
-      if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.error || 'Failed to load Hansard data.');
-      }
-      const jsonData: HansardData = await res.json();
-      if (!jsonData.interventions || jsonData.interventions.length === 0) {
-        throw new Error("Parsing completed, but no interventions were found in the XML.");
-      }
-      setData(jsonData);
-
-    } catch (error) {
-      console.error('Failed to get Hansard data:', error);
-      const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred.';
-      toast({
-        variant: 'destructive',
-        title: 'Error',
-        description: `Could not load data: ${errorMessage}`,
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-  
-  const getTextFromContent = (content: InterventionContent[]) => {
-    return content.filter(c => c.type === 'text').map(c => c.value).join(' ');
-  };
-
-  const getFullTranscriptText = () => {
-    if (!data) return '';
-    return data.interventions.map(i => {
-      const speaker = i.speaker || 'Unnamed Speaker';
-      const text = getTextFromContent(i.content);
-      if (i.type === 'OrderOfBusiness' || i.type === 'SubjectOfBusiness') {
-        return `\n--- ${text} ---\n`;
-      }
-      if (!text) return '';
-      return `${speaker}:\n${text}`;
-    }).join('\n\n');
-  }
-
-  const pollJobStatus = (id: string) => {
-    pollingIntervalRef.current = setInterval(async () => {
-      try {
-        const statusResult = await checkSummaryJob(id);
-        if (statusResult.status === 'completed') {
-          setFullSummary(statusResult.result!);
-          setIsSummarizingFull(false);
-          setJobId(null);
-          if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
-        } else if (statusResult.status === 'error') {
-          setSummaryError(`Error generating summary: ${statusResult.error}`);
-          setIsSummarizingFull(false);
-          setJobId(null);
-          if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
-        }
-        // If 'pending', do nothing and wait for the next interval
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred while polling.';
-        setSummaryError(errorMessage);
-        setIsSummarizingFull(false);
-        setJobId(null);
-        if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
-      }
-    }, 5000); // Poll every 5 seconds
-  };
-
-  const handleFullSummary = async () => {
-    const transcriptText = getFullTranscriptText();
-    if (transcriptText.length === 0) return;
-    
-    setIsSummarizingFull(true);
-    setFullSummary(null);
-    setSummaryError(null);
-    setJobId(null);
-    if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
-
-    try {
-      const { jobId: newJobId } = await startTranscriptSummary(transcriptText);
-      setJobId(newJobId);
-      pollJobStatus(newJobId);
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred.';
-      setSummaryError(`Error starting summary job: ${errorMessage}`);
-      setIsSummarizingFull(false);
-    }
-  }
-
-   const handleSittingDateCheck = async () => {
-    setSittingDateCheck({ isLoading: true, error: null, allDates: [], wasSitting: null, hansardUrl: null, isUrlLoading: false, isXmlLoading: false });
-    const dateToCheck = '2025-09-17';
-    try {
-        const dates = await getSittingDates();
-        const wasSitting = dates.includes(dateToCheck);
-        setSittingDateCheck(prev => ({ ...prev, isLoading: false, allDates: dates, wasSitting: wasSitting }));
-
-        if (wasSitting) {
-            setSittingDateCheck(prev => ({ ...prev, isUrlLoading: true }));
-            await sleep(1000); // Respectful delay
-            try {
-                const hansardUrl = await getHansardLinkForDate(dateToCheck);
-                setSittingDateCheck(prev => ({ ...prev, isUrlLoading: false, hansardUrl }));
-
-                if (hansardUrl) {
-                    setSittingDateCheck(prev => ({...prev, isXmlLoading: true}));
-                    await sleep(1000); // Respectful delay
-                    try {
-                        const xmlUrl = await getHansardXmlLink(hansardUrl);
-                        if(xmlUrl) setUrl(xmlUrl); // Set the main input URL
-                    } catch (xmlError) {
-                         const xmlErrorMessage = xmlError instanceof Error ? xmlError.message : 'An unknown error occurred while finding XML link.';
-                         setSittingDateCheck(prev => ({ ...prev, error: `${prev.error ? `${prev.error}\n` : ''}${xmlErrorMessage}`}));
-                    } finally {
-                        setSittingDateCheck(prev => ({...prev, isXmlLoading: false}));
-                    }
-                }
-            } catch (urlError) {
-                const urlErrorMessage = urlError instanceof Error ? urlError.message : 'An unknown error occurred while fetching the Hansard link.';
-                setSittingDateCheck(prev => ({ ...prev, isUrlLoading: false, error: `${prev.error ? `${prev.error}\n` : ''}${urlErrorMessage}`}));
-            }
-        }
-    } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred.';
-        setSittingDateCheck({ isLoading: false, error: errorMessage, allDates: [], wasSitting: null, hansardUrl: null, isUrlLoading: false, isXmlLoading: false });
-    }
-  };
-
   const renderIntervention = (intervention: Intervention, idx: number) => {
     const isSectionHeading = intervention.type === 'OrderOfBusiness' || intervention.type === 'SubjectOfBusiness';
     const sectionId = intervention.id || `section-${idx}`;
 
+    const textContent = intervention.content.filter(c => c.type === 'text').map(c => c.value).join(' ');
+
     if (isSectionHeading) {
-      const title = getTextFromContent(intervention.content);
+      const title = textContent;
       return (
         <Card key={sectionId} className="shadow-md bg-secondary/30">
           <CardHeader>
@@ -241,7 +245,7 @@ export default function HouseOfCommonsPage() {
       );
     }
 
-    if (!intervention.speaker || intervention.content.length === 0 || !getTextFromContent(intervention.content)) return null;
+    if (!intervention.speaker || intervention.content.length === 0 || !textContent) return null;
 
     return (
       <Card key={intervention.id || idx} className="shadow-sm ml-4">
@@ -274,7 +278,7 @@ export default function HouseOfCommonsPage() {
   
   const filteredInterventions = data?.interventions.filter(i => {
       if (!searchQuery) return true;
-      const fullText = getTextFromContent(i.content).toLowerCase();
+      const fullText = i.content.filter(c => c.type === 'text').map(c => c.value).join(' ').toLowerCase();
       const speakerName = i.speaker?.toLowerCase() || '';
       return fullText.includes(searchQuery.toLowerCase()) || speakerName.includes(searchQuery.toLowerCase());
   }) || [];
@@ -292,21 +296,35 @@ export default function HouseOfCommonsPage() {
                   House of Commons Debates
                 </CardTitle>
                 <CardDescription>
-                  Tools for fetching and analyzing parliamentary transcripts and data.
+                  Tools for fetching and analyzing parliamentary transcripts and data. This page now automatically fetches the previous day's debates.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
+                 <Card>
+                    <CardHeader className="pb-2">
+                        <CardTitle className="text-lg flex items-center gap-2"><Hourglass/> Automation Status</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="flex items-center gap-4 mt-4">
+                           {(automationStatus.step === 'idle' || automationStatus.step.includes('finding') || automationStatus.step.includes('checking') || automationStatus.step === 'loading_transcript' || automationStatus.step === 'summarizing') && (
+                             <Loader2 className="h-5 w-5 animate-spin"/>
+                           )}
+                           <p className="text-sm text-muted-foreground">{automationStatus.message}</p>
+                        </div>
+                        {automationStatus.step === 'error' && <p className="mt-2 text-sm text-destructive">{automationStatus.error}</p>}
+                    </CardContent>
+                 </Card>
                 <div className="flex flex-col sm:flex-row gap-2">
                   <Input
                     value={url}
                     onChange={(e) => setUrl(e.target.value)}
-                    placeholder="Enter Hansard XML URL..."
-                    disabled={isLoading}
+                    placeholder="Enter Hansard XML URL or let automation run..."
+                    disabled={isLoading || isSummarizing}
                     className="flex-1"
                   />
-                  <Button onClick={handleLoad} disabled={isLoading || !url}>
-                    {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <BookOpen className="mr-2 h-4 w-4" />}
-                    Load Transcript
+                  <Button onClick={() => handleLoad(url)} disabled={isLoading || isSummarizing || !url}>
+                    {(isLoading || isSummarizing) ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <BookOpen className="mr-2 h-4 w-4" />}
+                    Load Manually
                   </Button>
                 </div>
                  <p className="text-xs text-muted-foreground">
@@ -315,75 +333,6 @@ export default function HouseOfCommonsPage() {
               </CardContent>
             </Card>
 
-            <Card>
-                <CardHeader>
-                    <CardTitle className="flex items-center gap-2"><CalendarDays /> Sitting Calendar</CardTitle>
-                    <CardDescription>Check if the House of Commons was in session on a specific day and find the transcript XML.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <Button onClick={handleSittingDateCheck} disabled={sittingDateCheck.isLoading}>
-                        {sittingDateCheck.isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
-                        Check for Sitting on Sep 17, 2025
-                    </Button>
-                     {sittingDateCheck.isLoading && <p className="mt-4 text-sm text-muted-foreground">Checking calendar...</p>}
-                     {sittingDateCheck.error && <p className="mt-4 text-sm text-destructive">{sittingDateCheck.error}</p>}
-                     {sittingDateCheck.wasSitting !== null && (
-                        <div className="mt-4 space-y-4">
-                            <div>
-                                <h3 className="font-semibold">Did the House sit on September 17, 2025?</h3>
-                                <p className={`text-2xl font-bold ${sittingDateCheck.wasSitting ? 'text-green-600' : 'text-red-600'}`}>
-                                    {sittingDateCheck.wasSitting ? 'Yes' : 'No'}
-                                </p>
-                            </div>
-                            
-                            {sittingDateCheck.isUrlLoading && (
-                                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                    <span>Finding Hansard link... (1s delay)</span>
-                                </div>
-                            )}
-
-                            {sittingDateCheck.hansardUrl && (
-                                <div>
-                                    <h3 className="font-semibold flex items-center gap-2"><LinkIcon className="h-4 w-4" /> Found Hansard Link:</h3>
-                                    <a href={sittingDateCheck.hansardUrl} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-600 underline break-all">
-                                        {sittingDateCheck.hansardUrl}
-                                    </a>
-                                </div>
-                            )}
-
-                            {sittingDateCheck.isXmlLoading && (
-                                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                    <span>Finding XML link... (1s delay)</span>
-                                </div>
-                            )}
-
-                            {!sittingDateCheck.isXmlLoading && url.endsWith('.XML') && sittingDateCheck.hansardUrl && (
-                                <div>
-                                    <h3 className="font-semibold flex items-center gap-2"><FileCode className="h-4 w-4" /> Found XML Transcript Link:</h3>
-                                    <a href={url} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-600 underline break-all">
-                                        {url}
-                                    </a>
-                                     <p className="text-xs text-muted-foreground mt-1">The URL has been copied to the input field above.</p>
-                                </div>
-                            )}
-
-
-                             <Accordion type="single" collapsible className="w-full">
-                                <AccordionItem value="item-1">
-                                    <AccordionTrigger>View all extracted sitting dates (for testing)</AccordionTrigger>
-                                    <AccordionContent>
-                                        <pre className="mt-2 bg-muted p-4 rounded-md text-xs max-h-60 overflow-auto">
-                                            {JSON.stringify(sittingDateCheck.allDates, null, 2)}
-                                        </pre>
-                                    </AccordionContent>
-                                </AccordionItem>
-                            </Accordion>
-                        </div>
-                     )}
-                </CardContent>
-            </Card>
         </div>
         
         {data && (
@@ -400,18 +349,18 @@ export default function HouseOfCommonsPage() {
                     <p><span className="font-semibold">Number:</span> {data.meta.NumberNumber}</p>
                 </CardContent>
                  <CardFooter>
-                    <Button onClick={handleFullSummary} disabled={isSummarizingFull}>
-                        {isSummarizingFull ? <Hourglass className="mr-2 h-4 w-4 animate-spin" /> : <ScrollText className="mr-2 h-4 w-4" />}
-                        {isSummarizingFull ? 'Summarizing...' : 'Generate Full Summary'}
+                    <Button onClick={handleFullSummary} disabled={isSummarizing}>
+                        {isSummarizing ? <Hourglass className="mr-2 h-4 w-4 animate-spin" /> : <ScrollText className="mr-2 h-4 w-4" />}
+                        {isSummarizing ? 'Summarizing...' : 'Regenerate Full Summary'}
                     </Button>
                 </CardFooter>
             </Card>
         )}
 
-        {isSummarizingFull && (
+        {isSummarizing && (
             <div className="mt-6 flex justify-center items-center gap-2 text-muted-foreground">
                 <Loader2 className="h-5 w-5 animate-spin" />
-                <span>Summarization in progress. This may take several minutes. You can leave this page and come back.</span>
+                <span>Summarization in progress. This may take several minutes.</span>
             </div>
         )}
 
@@ -487,7 +436,7 @@ export default function HouseOfCommonsPage() {
           <HansardChat transcript={getFullTranscriptText()} summary={fullSummary.summary} />
         )}
 
-        {isLoading && (
+        {isLoading && !data && (
             <div className="mt-6 flex justify-center items-center gap-2 text-muted-foreground">
                 <Loader2 className="h-5 w-5 animate-spin" />
                 <span>Fetching and parsing transcript...</span>
@@ -528,3 +477,5 @@ export default function HouseOfCommonsPage() {
     </div>
   );
 }
+
+    
