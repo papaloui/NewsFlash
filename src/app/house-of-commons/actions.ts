@@ -157,3 +157,32 @@ export async function getHansardLinkForDate(date: string): Promise<string | null
         throw new Error('An unknown error occurred while fetching the Hansard link.');
     }
 }
+
+
+export async function getHansardXmlLink(hansardUrl: string): Promise<string | null> {
+    try {
+        const response = await fetch(hansardUrl);
+        if (!response.ok) {
+            throw new Error(`Failed to fetch Hansard page (${hansardUrl}): ${response.statusText}`);
+        }
+        const html = await response.text();
+        const dom = new JSDOM(html);
+        const document = dom.window.document;
+
+        const links = Array.from(document.querySelectorAll('a'));
+        const xmlLink = links.find(link => link.textContent?.trim().includes('XML'));
+        
+        if (xmlLink && xmlLink.href) {
+            // The href should be absolute on this page.
+            return xmlLink.href;
+        }
+
+        return null;
+    } catch (error) {
+        console.error(`Error fetching or parsing Hansard page for XML link (${hansardUrl}):`, error);
+        if (error instanceof Error) {
+            throw new Error(error.message);
+        }
+        throw new Error('An unknown error occurred while finding the XML link.');
+    }
+}

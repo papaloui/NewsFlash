@@ -5,12 +5,12 @@ import { useState, useEffect, useRef } from 'react';
 import { Header } from '@/components/app/header';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
-import { Landmark, Loader2, Search, BookOpen, Clock, Languages, User, FileText as FileTextIcon, ExternalLink, ScrollText, Bug, Hourglass, CalendarDays, Link as LinkIcon } from 'lucide-react';
+import { Landmark, Loader2, Search, BookOpen, Clock, Languages, User, FileText as FileTextIcon, ExternalLink, ScrollText, Bug, Hourglass, CalendarDays, Link as LinkIcon, FileCode } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { startTranscriptSummary, checkSummaryJob, getSittingDates, getHansardLinkForDate } from './actions';
+import { startTranscriptSummary, checkSummaryJob, getSittingDates, getHansardLinkForDate, getHansardXmlLink } from './actions';
 import { HansardChat } from '@/components/app/hansard-chat';
 
 
@@ -50,7 +50,11 @@ interface SittingDateCheck {
     wasSitting: boolean | null;
     hansardUrl: string | null;
     isUrlLoading: boolean;
+    isXmlLoading: boolean;
 }
+
+// Helper to introduce a delay
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 
 export default function HouseOfCommonsPage() {
@@ -70,6 +74,7 @@ export default function HouseOfCommonsPage() {
     wasSitting: null,
     hansardUrl: null,
     isUrlLoading: false,
+    isXmlLoading: false,
   });
 
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -177,7 +182,7 @@ export default function HouseOfCommonsPage() {
   }
 
    const handleSittingDateCheck = async () => {
-    setSittingDateCheck({ isLoading: true, error: null, allDates: [], wasSitting: null, hansardUrl: null, isUrlLoading: false });
+    setSittingDateCheck({ isLoading: true, error: null, allDates: [], wasSitting: null, hansardUrl: null, isUrlLoading: false, isXmlLoading: false });
     const dateToCheck = '2025-09-17';
     try {
         const dates = await getSittingDates();
@@ -186,9 +191,24 @@ export default function HouseOfCommonsPage() {
 
         if (wasSitting) {
             setSittingDateCheck(prev => ({ ...prev, isUrlLoading: true }));
+            await sleep(1000); // Respectful delay
             try {
                 const hansardUrl = await getHansardLinkForDate(dateToCheck);
                 setSittingDateCheck(prev => ({ ...prev, isUrlLoading: false, hansardUrl }));
+
+                if (hansardUrl) {
+                    setSittingDateCheck(prev => ({...prev, isXmlLoading: true}));
+                    await sleep(1000); // Respectful delay
+                    try {
+                        const xmlUrl = await getHansardXmlLink(hansardUrl);
+                        if(xmlUrl) setUrl(xmlUrl); // Set the main input URL
+                    } catch (xmlError) {
+                         const xmlErrorMessage = xmlError instanceof Error ? xmlError.message : 'An unknown error occurred while finding XML link.';
+                         setSittingDateCheck(prev => ({ ...prev, error: `${prev.error ? `${prev.error}\n` : ''}${xmlErrorMessage}`}));
+                    } finally {
+                        setSittingDateCheck(prev => ({...prev, isXmlLoading: false}));
+                    }
+                }
             } catch (urlError) {
                 const urlErrorMessage = urlError instanceof Error ? urlError.message : 'An unknown error occurred while fetching the Hansard link.';
                 setSittingDateCheck(prev => ({ ...prev, isUrlLoading: false, error: `${prev.error ? `${prev.error}\n` : ''}${urlErrorMessage}`}));
@@ -196,7 +216,7 @@ export default function HouseOfCommonsPage() {
         }
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred.';
-        setSittingDateCheck({ isLoading: false, error: errorMessage, allDates: [], wasSitting: null, hansardUrl: null, isUrlLoading: false });
+        setSittingDateCheck({ isLoading: false, error: errorMessage, allDates: [], wasSitting: null, hansardUrl: null, isUrlLoading: false, isXmlLoading: false });
     }
   };
 
@@ -284,7 +304,7 @@ export default function HouseOfCommonsPage() {
                     disabled={isLoading}
                     className="flex-1"
                   />
-                  <Button onClick={handleLoad} disabled={isLoading}>
+                  <Button onClick={handleLoad} disabled={isLoading || !url}>
                     {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <BookOpen className="mr-2 h-4 w-4" />}
                     Load Transcript
                   </Button>
@@ -298,7 +318,7 @@ export default function HouseOfCommonsPage() {
             <Card>
                 <CardHeader>
                     <CardTitle className="flex items-center gap-2"><CalendarDays /> Sitting Calendar</CardTitle>
-                    <CardDescription>Check if the House of Commons was in session on a specific day.</CardDescription>
+                    <CardDescription>Check if the House of Commons was in session on a specific day and find the transcript XML.</CardDescription>
                 </CardHeader>
                 <CardContent>
                     <Button onClick={handleSittingDateCheck} disabled={sittingDateCheck.isLoading}>
@@ -319,7 +339,7 @@ export default function HouseOfCommonsPage() {
                             {sittingDateCheck.isUrlLoading && (
                                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                    <span>Finding Hansard link...</span>
+                                    <span>Finding Hansard link... (1s delay)</span>
                                 </div>
                             )}
 
@@ -331,6 +351,24 @@ export default function HouseOfCommonsPage() {
                                     </a>
                                 </div>
                             )}
+
+                            {sittingDateCheck.isXmlLoading && (
+                                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                    <span>Finding XML link... (1s delay)</span>
+                                </div>
+                            )}
+
+                            {!sittingDateCheck.isXmlLoading && url.endsWith('.XML') && sittingDateCheck.hansardUrl && (
+                                <div>
+                                    <h3 className="font-semibold flex items-center gap-2"><FileCode className="h-4 w-4" /> Found XML Transcript Link:</h3>
+                                    <a href={url} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-600 underline break-all">
+                                        {url}
+                                    </a>
+                                     <p className="text-xs text-muted-foreground mt-1">The URL has been copied to the input field above.</p>
+                                </div>
+                            )}
+
 
                              <Accordion type="single" collapsible className="w-full">
                                 <AccordionItem value="item-1">
