@@ -54,7 +54,7 @@ async function getBillText(bill: any): Promise<string> {
     const billTypePath = bill.BillTypeEn.toLowerCase().includes('government') ? 'Government' : 'Private';
     const billNumberForPath = bill.BillNumberFormatted;
     
-    const url = `https://www.parl.ca/Content/Bills/${bill.ParliamentNumber}${bill.SessionNumber}/${billTypePath}/${billNumberForPath}/${billNumberForPath}_1/${billNumberForPath}_E.xml`;
+    const url = `https://www.parl.ca/Content/Bills/${bill.ParliamentNumber}/${bill.SessionNumber}/${billTypePath}/${billNumberForPath}/${billNumberForPath}_1/${billNumberForPath}_E.xml`;
     
     try {
         const response = await fetch(url);
@@ -108,6 +108,7 @@ export async function summarizeBillsFromYesterday(allBills: any[]): Promise<{ su
         }
         
         const aiInput: SummarizeBillsInput = { billsText: combinedText };
+        
         debugLog.push(`\n===== AI Prompt Input (Combined Text) =====`);
         debugLog.push(`The following combined text (${(combinedText.length / 1024).toFixed(2)} KB) will be provided to the AI for summarization.`);
         debugLog.push("===========================");
