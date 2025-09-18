@@ -23,6 +23,7 @@ interface Bill {
     LatestActivityDateTime: string;
     ParliamentNumber: number;
     SessionNumber: number;
+    LatestBillTextTypeId: number;
 }
 
 export default function BillsPage() {
@@ -119,7 +120,7 @@ export default function BillsPage() {
                         </CardHeader>
                         <CardContent>
                           <p className="text-destructive/90">{error}</p>
-                          <p className="text-sm text-muted-foreground mt-2">Could not retrieve the bill information from the parliamentary source. This may be a temporary issue with the data source or a change in the data format. Try refreshing the page to attempt the fetch again.</p>
+                          <p className="text-sm text-muted-foreground mt-2">Could not retrieve the bill information from the parliamentary source. This may be a temporary issue with the data source or a change in the data format. Please check the source URL and try again later.</p>
                         </CardContent>
                       </Card>
                 )}
@@ -163,14 +164,19 @@ export default function BillsPage() {
                                             View on PARL.ca
                                             <ExternalLink className="ml-2 h-4 w-4" />
                                         </a>
-
                                     </Button>
-                                    <Button asChild variant="secondary" size="sm" className="w-full">
-                                         <a href={`https://www.parl.ca/Content/Bills/${bill.ParliamentNumber}${bill.SessionNumber}/Private/${bill.BillNumberFormatted}/${bill.BillNumberFormatted}_1/${bill.BillNumberFormatted}_E.xml`} target="_blank" rel="noopener noreferrer">
-                                            View Bill Text
-                                            <FileType className="ml-2 h-4 w-4" />
-                                        </a>
-                                    </Button>
+                                    {bill.LatestBillTextTypeId !== 0 && (
+                                        <Button asChild variant="secondary" size="sm" className="w-full">
+                                            <a 
+                                                href={`https://www.parl.ca/Content/Bills/${bill.ParliamentNumber}${bill.SessionNumber}/Private/${bill.BillNumberFormatted.replace('-', '')}/${bill.BillNumberFormatted.replace('-', '')}_1/${bill.BillNumberFormatted.replace('-', '')}_E.xml`} 
+                                                target="_blank" 
+                                                rel="noopener noreferrer"
+                                            >
+                                                View Bill Text
+                                                <FileType className="ml-2 h-4 w-4" />
+                                            </a>
+                                        </Button>
+                                    )}
                                 </CardFooter>
                             </Card>
                         ))}
