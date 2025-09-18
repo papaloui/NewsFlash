@@ -105,7 +105,9 @@ export default function BillsPage() {
 
     const getBillTextUrl = (bill: Bill) => {
         const billTypePath = bill.BillTypeEn.toLowerCase().includes('government') ? 'Government' : 'Private';
+        // billNumberClean is needed for the filename parts of the URL.
         const billNumberClean = bill.BillNumberFormatted.replace('-', '');
+        // bill.BillNumberFormatted is needed for the directory part of the URL.
         return `https://www.parl.ca/Content/Bills/${bill.ParliamentNumber}${bill.SessionNumber}/${billTypePath}/${bill.BillNumberFormatted}/${billNumberClean}_1/${billNumberClean}_E.xml`;
     };
 
