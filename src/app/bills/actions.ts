@@ -53,9 +53,8 @@ export async function getBillsData(): Promise<any> {
 async function getBillText(bill: any): Promise<string> {
     const billTypePath = bill.BillTypeEn.toLowerCase().includes('government') ? 'Government' : 'Private';
     const billNumberForPath = bill.BillNumberFormatted;
-    const billNumberForFile = bill.BillNumberFormatted.replace('-', '');
     
-    const url = `https://www.parl.ca/Content/Bills/${bill.ParliamentNumber}${bill.SessionNumber}/${billTypePath}/${billNumberForPath}/${billNumberForFile}_1/${billNumberForFile}_E.xml`;
+    const url = `https://www.parl.ca/Content/Bills/${bill.ParliamentNumber}${bill.SessionNumber}/${billTypePath}/${billNumberForPath}/${billNumberForPath}_1/${billNumberForPath}_E.xml`;
 
     try {
         const response = await fetch(url);
