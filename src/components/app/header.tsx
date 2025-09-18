@@ -1,4 +1,4 @@
-import { Rss, Landmark, FileText, BookMarked, Building, BookCopy } from 'lucide-react';
+import { Rss, Landmark, FileText, BookMarked, Building, BookCopy, FileCode } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '../ui/button';
 import { Separator } from '../ui/separator';
@@ -45,6 +45,12 @@ export function Header() {
               <Link href="/canada-gazette">
                 <BookMarked className="mr-2 h-4 w-4" />
                 Canada Gazette
+              </Link>
+            </Button>
+            <Button asChild variant="ghost">
+              <Link href="/documentation">
+                <FileCode className="mr-2 h-4 w-4" />
+                Docs
               </Link>
             </Button>
         </nav>
