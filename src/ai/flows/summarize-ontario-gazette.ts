@@ -31,9 +31,14 @@ const prompt = ai.definePrompt({
     config: {
         maxOutputTokens: 4096,
     },
-    prompt: `You are an expert legal analyst. Please provide a one-page summary of the legal developments detailed in the attached Ontario Gazette document. 
-Focus specifically on the 'Ontario Regulations' section, highlighting any new or amended regulations and their key impacts. 
-The summary should be concise, easy to read, and highlight the most significant changes.
+    prompt: `You are an expert legal analyst writing a professional briefing. Your goal is to produce a cohesive, narrative-style summary of the attached Ontario Gazette. The summary should read as a single, well-structured report, not a choppy list of points.
+
+Your primary focus must be on the 'Ontario Regulations' section. Synthesize the information to:
+1.  Identify new or amended regulations.
+2.  Explain their key impacts and practical consequences.
+3.  Group related items together to create a smooth, logical flow in your writing.
+
+The final output should be a concise, easy-to-read, one-page report highlighting the most significant legal changes.
 
 Here is the document:
 ---
@@ -58,3 +63,4 @@ const summarizeOntarioGazetteFlow = ai.defineFlow(
         return output;
     }
 );
+
