@@ -55,22 +55,22 @@ async function getBillText(bill: any, debugLog: string[]): Promise<string> {
     const billNumberForPath = bill.BillNumberFormatted;
     
     const url = `https://www.parl.ca/Content/Bills/${bill.ParliamentNumber}${bill.SessionNumber}/${billTypePath}/${billNumberForPath}/${billNumberForPath}_1/${billNumberForPath}_E.xml`;
-    debugLog.push(`Requesting URL: ${url}`);
+    // debugLog.push(`Requesting URL: ${url}`);
 
     try {
         const response = await fetch(url);
         if (!response.ok) {
             const errorText = `Bill text not available. URL: ${url} (Status: ${response.status}).`;
-            debugLog.push(`Request FAILED: ${errorText}`);
+            // debugLog.push(`Request FAILED: ${errorText}`);
             return errorText;
         }
         const text = await response.text();
-        debugLog.push(`XML content received from ${url}:\n---\n${text}\n---`);
+        // debugLog.push(`XML content received from ${url}:\n---\n${text}\n---`);
         return text;
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         const errorText = `Failed to fetch bill text. URL: ${url}. Reason: ${errorMessage}`;
-        debugLog.push(`Request FAILED: ${errorText}`);
+        // debugLog.push(`Request FAILED: ${errorText}`);
         return errorText;
     }
 }
