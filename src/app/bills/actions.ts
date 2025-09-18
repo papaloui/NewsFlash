@@ -2,6 +2,7 @@
 'use server';
 
 import { XMLParser } from "fast-xml-parser";
+import { summarizeBills, type SummarizeBillsInput } from "@/ai/flows/summarize-bills";
 
 export async function getBillsData(): Promise<any> {
     try {
@@ -20,18 +21,14 @@ export async function getBillsData(): Promise<any> {
         const parser = new XMLParser({
             ignoreAttributes: false,
             attributeNamePrefix: "",
-            // Ensure numeric values that are empty strings are parsed as null or 0
             parseTagValue: (tagName, tagValue, jPath, isLeafNode, isAttribute) => {
                 if (tagValue === '' && (jPath.endsWith('Id') || jPath.endsWith('Number'))) {
                     return 0;
                 }
                 return tagValue;
             },
-            // The XML fields are consistently named, so this should be safe
             tagValueProcessor: (tagName, tagValue) => {
                  if (tagValue && typeof tagValue === 'string') {
-                    // Example: <LongTitleEn>&lt;p&gt;An Act&lt;/p&gt;</LongTitleEn>
-                    // Decode HTML entities
                     return tagValue.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
                 }
                 return tagValue;
@@ -53,4 +50,50 @@ export async function getBillsData(): Promise<any> {
     }
 }
 
-    
+async function getBillText(bill: any): Promise<string> {
+    const url = `https://www.parl.ca/Content/Bills/${bill.ParliamentNumber}${bill.SessionNumber}/Private/${bill.BillNumberFormatted.replace('-', '')}/${bill.BillNumberFormatted.replace('-', '')}_1/${bill.BillNumberFormatted.replace('-', '')}_E.xml`;
+    try {
+        const response = await fetch(url);
+        if (!response.ok) {
+            return `Bill text not available at ${url} (Status: ${response.status}). It may not exist or the URL structure is different for this bill type.`;
+        }
+        const text = await response.text();
+        // For now, we are passing the raw XML. A future improvement could be parsing it for cleaner text.
+        return text;
+    } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        return `Failed to fetch bill text from ${url}. Reason: ${errorMessage}`;
+    }
+}
+
+export async function summarizeBillsFromYesterday(allBills: any[]): Promise<{ summary: string } | { error: string }> {
+    try {
+        const yesterday = new Date();
+        yesterday.setDate(yesterday.getDate() - 1);
+        const yesterdayString = yesterday.toISOString().split('T')[0];
+
+        const billsFromYesterday = allBills.filter(bill => {
+            return bill.LatestActivityDateTime && bill.LatestActivityDateTime.startsWith(yesterdayString);
+        });
+
+        if (billsFromYesterday.length === 0) {
+            return { summary: "No bills were updated yesterday." };
+        }
+
+        const billsWithText: SummarizeBillsInput = await Promise.all(
+            billsFromYesterday.map(async (bill) => {
+                const text = await getBillText(bill);
+                return { billNumber: bill.BillNumberFormatted, text };
+            })
+        );
+        
+        const result = await summarizeBills(billsWithText);
+
+        return result;
+
+    } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred during summarization.';
+        console.error('Error in summarizeBillsFromYesterday:', error);
+        return { error: errorMessage };
+    }
+}

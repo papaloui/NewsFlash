@@ -5,10 +5,10 @@ import { useState, useEffect } from 'react';
 import { Header } from '@/components/app/header';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
-import { FileText, Loader2, ServerCrash, ExternalLink, Filter, User, Calendar, Activity, FileType } from 'lucide-react';
+import { FileText, Loader2, ServerCrash, ExternalLink, Filter, User, Calendar, Activity, FileType, Newspaper, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { getBillsData } from './actions';
+import { getBillsData, summarizeBillsFromYesterday } from './actions';
 import { Input } from '@/components/ui/input';
 
 interface Bill {
@@ -31,6 +31,8 @@ export default function BillsPage() {
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [filter, setFilter] = useState('');
+    const [summary, setSummary] = useState<string | null>(null);
+    const [isSummarizing, setIsSummarizing] = useState(false);
     const { toast } = useToast();
 
     useEffect(() => {
@@ -60,6 +62,27 @@ export default function BillsPage() {
         }
         loadData();
     }, [toast]);
+
+    const handleSummarize = async () => {
+        setIsSummarizing(true);
+        setSummary(null);
+        try {
+            const result = await summarizeBillsFromYesterday(bills);
+            if ('error' in result) {
+                throw new Error(result.error);
+            }
+            setSummary(result.summary);
+        } catch (err) {
+             const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred.';
+             toast({
+                variant: 'destructive',
+                title: 'Summarization Failed',
+                description: errorMessage,
+            });
+        } finally {
+            setIsSummarizing(false);
+        }
+    };
 
     const filteredBills = bills.filter(bill => {
         const searchTerm = filter.toLowerCase();
@@ -96,18 +119,47 @@ export default function BillsPage() {
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
-                         <div className="relative mb-4">
-                            <Filter className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                            <Input
-                                placeholder={`Filter ${bills.length > 0 ? bills.length : ''} bills by number, title, sponsor, or status...`}
-                                value={filter}
-                                onChange={(e) => setFilter(e.target.value)}
-                                className="pl-10 w-full"
-                                disabled={isLoading || !!error}
-                            />
+                         <div className="flex flex-col sm:flex-row gap-4">
+                            <div className="relative flex-grow">
+                                <Filter className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                <Input
+                                    placeholder={`Filter ${bills.length > 0 ? bills.length : ''} bills...`}
+                                    value={filter}
+                                    onChange={(e) => setFilter(e.target.value)}
+                                    className="pl-10 w-full"
+                                    disabled={isLoading || !!error}
+                                />
+                            </div>
+                            <Button onClick={handleSummarize} disabled={isSummarizing || isLoading || bills.length === 0}>
+                                {isSummarizing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
+                                Summarize Yesterday's Bills
+                            </Button>
                         </div>
                     </CardContent>
                 </Card>
+
+                {isSummarizing && (
+                    <Card className="mb-6">
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2 text-lg"><Newspaper/> Yesterday's Bill Summary</CardTitle>
+                        </CardHeader>
+                        <CardContent className="flex items-center gap-2 text-muted-foreground">
+                            <Loader2 className="h-5 w-5 animate-spin" />
+                            <p>Generating summary from yesterday's updated bills...</p>
+                        </CardContent>
+                    </Card>
+                )}
+
+                {summary && (
+                     <Card className="mb-6 bg-primary/10">
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2 text-lg"><Newspaper/> Yesterday's Bill Summary</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <p className="whitespace-pre-wrap font-body text-sm leading-relaxed">{summary}</p>
+                        </CardContent>
+                    </Card>
+                )}
 
                 {isLoading && (
                     <div className="flex justify-center items-center gap-2 text-muted-foreground">
@@ -123,7 +175,7 @@ export default function BillsPage() {
                         </CardHeader>
                         <CardContent>
                           <p className="text-destructive/90">{error}</p>
-                          <p className="text-sm text-muted-foreground mt-2">Could not retrieve the bill information from the parliamentary source. This may be a temporary issue with the data source or a change in the data format. Please check the source URL and try again later.</p>
+                          <p className="text-sm text-muted-foreground mt-2">Could not retrieve the bill information from the parliamentary source. This may be a temporary issue with the data source. Please try again later.</p>
                         </CardContent>
                       </Card>
                 )}
@@ -192,4 +244,3 @@ export default function BillsPage() {
         </div>
     );
 }
-
