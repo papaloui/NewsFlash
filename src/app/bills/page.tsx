@@ -165,18 +165,16 @@ export default function BillsPage() {
                                             <ExternalLink className="ml-2 h-4 w-4" />
                                         </a>
                                     </Button>
-                                    {bill.LatestBillTextTypeId !== 0 && (
-                                        <Button asChild variant="secondary" size="sm" className="w-full">
-                                            <a 
-                                                href={`https://www.parl.ca/Content/Bills/${bill.ParliamentNumber}${bill.SessionNumber}/Private/${bill.BillNumberFormatted.replace('-', '')}/${bill.BillNumberFormatted.replace('-', '')}_1/${bill.BillNumberFormatted.replace('-', '')}_E.xml`} 
-                                                target="_blank" 
-                                                rel="noopener noreferrer"
-                                            >
-                                                View Bill Text
-                                                <FileType className="ml-2 h-4 w-4" />
-                                            </a>
-                                        </Button>
-                                    )}
+                                    <Button asChild variant="secondary" size="sm" className="w-full">
+                                        <a 
+                                            href={`https://www.parl.ca/Content/Bills/${bill.ParliamentNumber}${bill.SessionNumber}/Private/${bill.BillNumberFormatted.replace('-', '')}/${bill.BillNumberFormatted.replace('-', '')}_1/${bill.BillNumberFormatted.replace('-', '')}_E.xml`} 
+                                            target="_blank" 
+                                            rel="noopener noreferrer"
+                                        >
+                                            View Bill Text
+                                            <FileType className="ml-2 h-4 w-4" />
+                                        </a>
+                                    </Button>
                                 </CardFooter>
                             </Card>
                         ))}
