@@ -13,6 +13,7 @@ export default function OntarioBillsPage() {
     const [bills, setBills] = useState<OntarioBill[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [rawHtml, setRawHtml] = useState<string | null>(null);
     const [filter, setFilter] = useState('');
     const { toast } = useToast();
 
@@ -20,9 +21,13 @@ export default function OntarioBillsPage() {
         async function loadData() {
             setIsLoading(true);
             setError(null);
+            setRawHtml(null);
             try {
                 const data = await getOntarioBills();
                 if ('error' in data) {
+                    if (data.html) {
+                        setRawHtml(data.html);
+                    }
                     throw new Error(data.error);
                 }
                 setBills(data.bills);
@@ -93,6 +98,14 @@ export default function OntarioBillsPage() {
                         <CardContent>
                           <p className="text-destructive/90">{error}</p>
                           <p className="text-sm text-muted-foreground mt-2">Could not retrieve the bill information from the OLA source. This may be a temporary issue with the data source or a change in the page structure.</p>
+                          {rawHtml && (
+                            <div className="mt-4">
+                                <h3 className="font-semibold">Raw HTML Content of Page:</h3>
+                                <pre className="mt-2 p-4 bg-muted/50 rounded-md text-xs overflow-auto max-h-96">
+                                    <code>{rawHtml}</code>
+                                </pre>
+                            </div>
+                          )}
                         </CardContent>
                       </Card>
                 )}
