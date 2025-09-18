@@ -72,14 +72,15 @@ async function getBillText(bill: any): Promise<string> {
     try {
         const response = await fetch(url);
         if (!response.ok) {
-            return `Bill text not available at ${url} (Status: ${response.status}). It may not exist or the URL structure is different for this bill type.`;
+            // Return a detailed error message including the URL
+            return `Bill text not available. URL: ${url} (Status: ${response.status}). The URL structure may be different for this bill type.`;
         }
         const text = await response.text();
-        // For now, we are passing the raw XML. A future improvement could be parsing it for cleaner text.
         return text;
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        return `Failed to fetch bill text from ${url}. Reason: ${errorMessage}`;
+        // Return a detailed error message including the URL
+        return `Failed to fetch bill text. URL: ${url}. Reason: ${errorMessage}`;
     }
 }
 
