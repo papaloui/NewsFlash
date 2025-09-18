@@ -25,13 +25,13 @@ export default function OntarioBillsPage() {
             setRawHtml(null);
             try {
                 const data = await getOntarioBills();
-                if ('error' in data) {
+                if (data.error) {
                     if (data.html) {
                         setRawHtml(data.html);
                     }
                     throw new Error(data.error);
                 }
-                setBills(data.bills);
+                setBills(data.bills || []);
             } catch (err) {
                 const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred.';
                 setError(errorMessage);
@@ -97,12 +97,13 @@ export default function OntarioBillsPage() {
                           <CardTitle className='text-destructive flex items-center gap-2'><ServerCrash/> Data Unavailable</CardTitle>
                         </CardHeader>
                         <CardContent>
-                          <p className="text-destructive/90">{error}</p>
+                          <p className="text-destructive/90 mb-2 font-semibold">URL Requested: <span className="font-normal text-muted-foreground">https://www.ola.org/en/legislative-business/bills/parliament-44/session-1/</span></p>
+                          <p className="text-destructive/90 font-semibold">Error Message: <span className="font-normal text-muted-foreground">{error}</span></p>
                           <p className="text-sm text-muted-foreground mt-2">Could not retrieve the bill information from the OLA source. This may be a temporary issue with the data source or a change in the page structure.</p>
                           {rawHtml && (
                             <div className="mt-4">
                                 <h3 className="font-semibold">Raw HTML Content of Page:</h3>
-                                <pre className="mt-2 p-4 bg-muted/50 rounded-md text-xs overflow-auto max-h-96">
+                                <pre className="mt-2 p-4 bg-muted/50 rounded-md text-xs overflow-auto max-h-96 border">
                                     <code>{rawHtml}</code>
                                 </pre>
                             </div>
@@ -118,6 +119,7 @@ export default function OntarioBillsPage() {
                                 <CardHeader>
                                     <div className="flex justify-between items-start">
                                         <CardTitle className="text-lg font-bold">Bill {bill.billNumber}</CardTitle>
+
                                     </div>
                                     <CardDescription>{bill.title}</CardDescription>
                                 </CardHeader>
@@ -126,9 +128,13 @@ export default function OntarioBillsPage() {
                                         <User className="h-4 w-4 text-muted-foreground mt-0.5" />
                                         <div>
                                             <span className="font-semibold">Sponsor(s):</span>
-                                            <ul className="list-disc pl-5">
-                                                {bill.sponsors.map(s => <li key={s}>{s}</li>)}
-                                            </ul>
+                                            {bill.sponsors.length > 0 ? (
+                                                <ul className="list-disc pl-5">
+                                                    {bill.sponsors.map(s => <li key={s}>{s}</li>)}
+                                                </ul>
+                                            ) : (
+                                                <span> N/A</span>
+                                            )}
                                         </div>
                                     </div>
                                 </CardContent>

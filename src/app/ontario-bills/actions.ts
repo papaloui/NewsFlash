@@ -10,16 +10,18 @@ export interface OntarioBill {
     sponsors: string[];
 }
 
-export async function getOntarioBills(): Promise<{ bills: OntarioBill[] } | { error: string, html?: string }> {
+export async function getOntarioBills(): Promise<{ bills?: OntarioBill[], error?: string, html?: string }> {
     const url = 'https://www.ola.org/en/legislative-business/bills/parliament-44/session-1/';
     console.log(`[Request Log] Fetching Ontario Bills from: ${url}`);
+    let html = '';
 
     try {
         const response = await fetch(url);
+        html = await response.text();
         if (!response.ok) {
             throw new Error(`Failed to fetch Ontario bills page: ${response.statusText}`);
         }
-        const html = await response.text();
+        
         const dom = new JSDOM(html);
         const document = dom.window.document;
 
@@ -47,7 +49,8 @@ export async function getOntarioBills(): Promise<{ bills: OntarioBill[] } | { er
         });
 
         if (bills.length === 0) {
-            return { error: 'No bills were found in the table. The table might be empty or the structure has changed.', html };
+            // This case is also an error, as we expect bills.
+            throw new Error('No bills were found in the table. The table might be empty or the structure has changed.');
         }
 
         return { bills };
@@ -55,8 +58,6 @@ export async function getOntarioBills(): Promise<{ bills: OntarioBill[] } | { er
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
         console.error('Error in getOntarioBills:', error);
-        // Attempt to get html for debugging even on fetch error, might not always be available
-        const html = (error as any).html || undefined;
-        return { error: errorMessage, html };
+        return { error: errorMessage, html: html };
     }
 }
