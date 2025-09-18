@@ -29,8 +29,8 @@ const prompt = ai.definePrompt({
     name: 'summarizeGazettePrompt',
     input: { schema: SummarizeGazetteInputSchema },
     output: { schema: SummarizeGazetteOutputSchema },
+    model: 'googleai/gemini-1.5-flash',
     config: {
-        model: 'googleai/gemini-1.5-flash',
         maxOutputTokens: 4096,
     },
     prompt: `You are an expert governmental analyst. You have been provided with a PDF of Part I of the Canada Gazette.
