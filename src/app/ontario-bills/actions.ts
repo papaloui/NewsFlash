@@ -25,9 +25,9 @@ export async function getOntarioBills(): Promise<{ bills?: OntarioBill[], error?
         const dom = new JSDOM(html);
         const document = dom.window.document;
 
-        const table = document.querySelector('#DataTables_Table_0');
+        const table = document.querySelector('table.views-table.views-view-table.cols-3');
         if (!table) {
-            throw new Error('Could not find the bills table on the page. The page structure may have changed.');
+            throw new Error('Could not find the bills table on the page using selector "table.views-table.views-view-table.cols-3". The page structure may have changed.');
         }
 
         const bills: OntarioBill[] = [];
