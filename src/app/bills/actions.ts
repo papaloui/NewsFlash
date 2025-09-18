@@ -89,21 +89,26 @@ export async function summarizeBillsFromYesterday(allBills: any[]): Promise<{ su
             return { summary: "No bills were updated yesterday." };
         }
 
+        // 1. Fetch all bill texts in parallel
         const billTexts = await Promise.all(
             billsFromYesterday.map(async (bill) => {
                 const text = await getBillText(bill);
+                // Add a header to separate bills in the final combined string
                 return `--- BILL ${bill.BillNumberFormatted} ---\n${text}`;
             })
         );
         
+        // 2. Join all texts into a single string
         const combinedText = billTexts.join('\n\n');
         
         const aiInput: SummarizeBillsInput = { billsText: combinedText };
         
         debugLog.push(`\n===== AI Prompt Input (Combined Text) =====`);
         debugLog.push(`The following combined text (${(combinedText.length / 1024).toFixed(2)} KB) will be provided to the AI for summarization.`);
+        // Note: We don't log the full 'combinedText' itself as it could be very long and clutter the console.
         debugLog.push("===========================");
         
+        // 3. Make a single call to the AI with the combined text
         const result = await summarizeBills(aiInput);
 
         return result;
