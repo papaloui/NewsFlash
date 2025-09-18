@@ -46,7 +46,9 @@ export default function BillsPage() {
                     throw new Error(data.error);
                 }
                 const sortedBills = (data.Bills || []).sort((a: Bill, b: Bill) => {
-                    return new Date(b.LatestActivityDateTime).getTime() - new Date(a.LatestActivityDateTime).getTime();
+                    const dateA = a.LatestActivityDateTime ? new Date(a.LatestActivityDateTime).getTime() : 0;
+                    const dateB = b.LatestActivityDateTime ? new Date(b.LatestActivityDateTime).getTime() : 0;
+                    return dateB - dateA;
                 });
                 setBills(sortedBills);
             } catch (err) {
@@ -109,12 +111,6 @@ export default function BillsPage() {
     const getBillTextUrl = (bill: Bill) => {
         const billTypePath = bill.BillTypeEn.toLowerCase().includes('government') ? 'Government' : 'Private';
         const billNumberForPath = bill.BillNumberFormatted;
-        
-        // This is the special case for C-2 from our debugging.
-        if (bill.BillNumberFormatted === 'C-2') {
-             return `https://www.parl.ca/Content/Bills/451/Government/C-2/C-2_1/C-2_E.xml`;
-        }
-
         return `https://www.parl.ca/Content/Bills/${bill.ParliamentNumber}${bill.SessionNumber}/${billTypePath}/${billNumberForPath}/${billNumberForPath}_1/${billNumberForPath}_E.xml`;
     };
 
@@ -130,7 +126,7 @@ export default function BillsPage() {
                             Parliamentary Bills
                         </CardTitle>
                         <CardDescription>
-                            A list of all active and completed bills for the {bills.length > 0 ? `${bills[0].ParliamentNumber}th Parliament, ${bills[0].SessionNumber}st Session` : 'current parliamentary session'}. Sourced from OurCommons.ca.
+                            A list of all active and completed bills for the {bills.length > 0 && bills[0].ParliamentNumber ? `${bills[0].ParliamentNumber}th Parliament, ${bills[0].SessionNumber}st Session` : 'current parliamentary session'}. Sourced from OurCommons.ca.
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
@@ -220,7 +216,7 @@ export default function BillsPage() {
                                 <CardContent className="space-y-3 text-sm flex-grow">
                                      <div className="flex items-center gap-2">
                                         <User className="h-4 w-4 text-muted-foreground" />
-                                        <span className="font-semibold">Sponsor:</span> {bill.SponsorEn}
+                                        <span className="font-semibold">Sponsor:</span> {bill.SponsorEn || 'N/A'}
                                     </div>
                                     <div className="flex items-start gap-2">
                                         <Activity className="h-4 w-4 text-muted-foreground mt-0.5" />
@@ -230,7 +226,7 @@ export default function BillsPage() {
                                     </div>
                                      <div className="flex items-center gap-2">
                                         <Calendar className="h-4 w-4 text-muted-foreground" />
-                                        <span className="font-semibold">Last Update:</span> {new Date(bill.LatestActivityDateTime).toLocaleDateString()}
+                                        <span className="font-semibold">Last Update:</span> {bill.LatestActivityDateTime ? new Date(bill.LatestActivityDateTime).toLocaleDateString() : 'N/A'}
                                     </div>
                                     <p>
                                         <span className="font-semibold">Stage:</span> {bill.LatestCompletedMajorStageEn}

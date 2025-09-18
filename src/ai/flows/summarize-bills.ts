@@ -30,8 +30,6 @@ Your task is to create a single, coherent report summarizing all of them.
 For each bill, generate a concise and neutral summary. Combine these into the final report.
 If the text for a bill could not be retrieved, a note will indicate this. Please mention this in your summary for that specific bill.
 
-Your output MUST be a single JSON object with a "summary" field containing the full report.
-
 Here is the full text of the bills:
 ---
 {{{billsText}}}

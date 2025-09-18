@@ -81,9 +81,10 @@ export async function summarizeBillsFromYesterday(allBills: any[]): Promise<{ su
         debugLog.push(`Filtering for bills updated on ${yesterdayStr}.`);
 
         const billsFromYesterday = allBills.filter(bill => {
-            return bill.LatestActivityDateTime.startsWith(yesterdayStr);
+            const activityDate = bill.LatestActivityDateTime?.split('T')[0];
+            return activityDate === yesterdayStr;
         });
-
+        
         debugLog.push(`Found ${billsFromYesterday.length} bills from yesterday.`);
 
         if (billsFromYesterday.length === 0) {
@@ -107,14 +108,9 @@ export async function summarizeBillsFromYesterday(allBills: any[]): Promise<{ su
         }
         
         const aiInput: SummarizeBillsInput = { billsText: combinedText };
-        debugLog.push("\n===== AI Prompt Input =====");
-        debugLog.push("The following combined text will be provided to the AI for summarization:");
-        debugLog.push(aiInput.billsText);
+        debugLog.push(`\n===== AI Prompt Input (Combined Text) =====`);
+        debugLog.push(`The following combined text (${(combinedText.length / 1024).toFixed(2)} KB) will be provided to the AI for summarization.`);
         debugLog.push("===========================");
-
-        console.log("===== Full Bill Summarization Debug Log =====");
-        console.log(debugLog.join('\n'));
-        console.log("==============================================");
         
         const result = await summarizeBills(aiInput);
 
