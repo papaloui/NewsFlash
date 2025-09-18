@@ -4,6 +4,9 @@
 import { XMLParser } from "fast-xml-parser";
 import { summarizeBills, type SummarizeBillsInput } from "@/ai/flows/summarize-bills";
 
+// Helper function to introduce a delay
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
 export async function getBillsData(): Promise<any> {
     try {
         const xmlUrl = 'https://www.parl.ca/legisinfo/en/bills/xml';
@@ -86,14 +89,12 @@ export async function summarizeBillsFromYesterday(allBills: any[]): Promise<{ su
             return { summary: "No bills were updated yesterday." };
         }
 
-        const billTexts = await Promise.all(
-            billsFromYesterday.map(async (bill) => {
-                const text = await getBillText(bill);
-                return `--- BILL ${bill.BillNumberFormatted} ---\n${text}`;
-            })
-        );
-        
-        const combinedText = billTexts.join('\n\n');
+        let combinedText = '';
+        for (const bill of billsFromYesterday) {
+            const text = await getBillText(bill);
+            combinedText += `--- BILL ${bill.BillNumberFormatted} ---\n${text}\n\n`;
+            await sleep(200); // Add a 200ms delay between requests to be polite
+        }
         
         if (!combinedText.trim()) {
             return { error: "Could not retrieve text for any of yesterday's bills. Aborting summarization." };
