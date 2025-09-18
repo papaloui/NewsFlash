@@ -42,7 +42,10 @@ export default function BillsPage() {
                 if (data.error) {
                     throw new Error(data.error);
                 }
-                setBills(data.Bills || []);
+                const sortedBills = (data.Bills || []).sort((a: Bill, b: Bill) => {
+                    return new Date(b.LatestActivityDateTime).getTime() - new Date(a.LatestActivityDateTime).getTime();
+                });
+                setBills(sortedBills);
             } catch (err) {
                 const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred.';
                 setError(errorMessage);
@@ -70,7 +73,7 @@ export default function BillsPage() {
     });
     
     const getStatusBadgeVariant = (status: string) => {
-        const lowerStatus = status.toLowerCase();
+        const lowerStatus = status ? status.toLowerCase() : '';
         if (lowerStatus.includes('royal assent')) return 'default';
         if (lowerStatus.includes('defeated') || lowerStatus.includes('negatived')) return 'destructive';
         if (lowerStatus.includes('reading') || lowerStatus.includes('introduced')) return 'secondary';
@@ -132,7 +135,7 @@ export default function BillsPage() {
                                 <CardHeader>
                                     <div className="flex justify-between items-start">
                                         <CardTitle className="text-lg font-bold">{bill.BillNumberFormatted}</CardTitle>
-                                        <Badge variant={getStatusBadgeVariant(bill.CurrentStatusEn)}>{bill.CurrentStatusEn}</Badge>
+                                        {bill.CurrentStatusEn && <Badge variant={getStatusBadgeVariant(bill.CurrentStatusEn)}>{bill.CurrentStatusEn}</Badge>}
                                     </div>
                                     <CardDescription>{bill.LongTitleEn}</CardDescription>
                                 </CardHeader>
