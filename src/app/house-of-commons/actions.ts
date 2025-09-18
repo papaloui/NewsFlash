@@ -3,13 +3,33 @@
 
 import { summarizeHansardTranscript } from "@/ai/flows/summarize-hansard-transcript";
 import { hansardAgent } from "@/ai/flows/hansard-agent";
-import type { SummarizeHansardTranscriptOutput } from "@/lib/schemas";
+import type { SummarizeHansardTranscriptOutput, TranscriptChunk } from "@/lib/schemas";
 import { logDebug } from "@/lib/logger";
 import { JSDOM } from 'jsdom';
 
 // In-memory cache for long-running jobs.
 // NOTE: In a production, multi-instance environment, you would use a persistent store like Firestore or Redis.
 const jobCache = new Map<string, Promise<SummarizeHansardTranscriptOutput>>();
+
+const CHUNK_SIZE = 12000; // Characters per chunk
+const CHUNK_OVERLAP = 1000; // Characters to overlap between chunks
+
+function createChunks(transcript: string): TranscriptChunk[] {
+  const chunks: TranscriptChunk[] = [];
+  let i = 0;
+  
+  // This simplistic split is a placeholder. A more robust solution would split by speaker interventions.
+  while (i < transcript.length) {
+    const end = Math.min(i + CHUNK_SIZE, transcript.length);
+    chunks.push({
+      speaker: 'System', // Speaker context is lost in this simple chunking.
+      text: transcript.substring(i, end),
+    });
+    i += CHUNK_SIZE - CHUNK_OVERLAP;
+  }
+  
+  return chunks;
+}
 
 export async function startTranscriptSummary(transcript: string): Promise<{ jobId: string }> {
     logDebug('startTranscriptSummary server action invoked.');
@@ -18,10 +38,15 @@ export async function startTranscriptSummary(transcript: string): Promise<{ jobI
             throw new Error("Not enough content to create a full summary.");
         }
         
+        const chunks = createChunks(transcript);
+        if(chunks.length === 0) {
+           throw new Error("Transcript was not empty, but failed to create any chunks for processing.");
+        }
+
         const jobId = `summary-${Date.now()}`;
         
         // Start the summarization but don't await it. Store the promise in the cache.
-        const summaryPromise = summarizeHansardTranscript({ transcript });
+        const summaryPromise = summarizeHansardTranscript(chunks);
         jobCache.set(jobId, summaryPromise);
         
         logDebug(`Started summary job with ID: ${jobId}`);

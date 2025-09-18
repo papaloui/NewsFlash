@@ -420,19 +420,20 @@ export default function HouseOfCommonsPage() {
                             </AccordionTrigger>
                             <AccordionContent className="space-y-4">
                                 <div>
-                                    <h4 className="font-semibold text-lg mb-2">Final Prompt to AI (Full Transcript)</h4>
-                                    <p className="text-xs text-muted-foreground mb-2">The following is the full transcript text sent to the model for summarization.</p>
-                                    <pre className="whitespace-pre-wrap font-body text-xs bg-muted p-4 rounded-md max-h-[400px] overflow-auto">{fullSummary.debugInfo.finalPrompt}</pre>
-                                </div>
-                                <div>
-                                    <h4 className="font-semibold text-lg mb-2">Debug Information</h4>
+                                    <h4 className="font-semibold text-lg mb-2">Intermediate Summaries (Map Step)</h4>
+                                    <p className="text-xs text-muted-foreground mb-2">The following are the summaries generated for each individual transcript chunk.</p>
                                     <div className="space-y-2 max-h-[600px] overflow-auto pr-2">
                                     {fullSummary.debugInfo.chunkSummaries.map((chunk, index) => (
                                         <div key={index} className="bg-muted/50 p-3 rounded-md">
-                                            <p className="text-sm whitespace-pre-wrap font-mono">{chunk}</p>
+                                            <p className="text-sm whitespace-pre-wrap font-mono">{`Chunk ${index + 1}: ${chunk}`}</p>
                                         </div>
                                     ))}
                                     </div>
+                                </div>
+                                <div>
+                                    <h4 className="font-semibold text-lg mb-2 mt-4">Final Prompt to AI (Reduce Step)</h4>
+                                    <p className="text-xs text-muted-foreground mb-2">The following is the combined prompt of all intermediate summaries that was sent to the model to generate the final output.</p>
+                                    <pre className="whitespace-pre-wrap font-body text-xs bg-muted p-4 rounded-md max-h-[400px] overflow-auto">{fullSummary.debugInfo.finalPrompt}</pre>
                                 </div>
                             </AccordionContent>
                         </AccordionItem>
@@ -487,5 +488,3 @@ export default function HouseOfCommonsPage() {
     </div>
   );
 }
-
-    
