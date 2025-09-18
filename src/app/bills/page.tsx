@@ -162,7 +162,7 @@ export default function BillsPage() {
                         </CardHeader>
                         <CardContent>
                           <p className="text-destructive/90">{error}</p>
-                          <p className="text-sm text-muted-foreground mt-2">Could not retrieve the bill information from the parliamentary source. Please check the debug logs above and try again later.</p>
+                          <p className="text-sm text-muted-foreground mt-2">Could not retrieve the bill information from the parliamentary source. Please check the debug logs above for more details on which URL was used and where the process may have failed. Try refreshing the page to attempt the fetch again.</p>
                         </CardContent>
                       </Card>
                 )}
