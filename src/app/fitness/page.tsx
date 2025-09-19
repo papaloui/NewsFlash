@@ -110,10 +110,10 @@ export default function FitnessPage() {
                                 <CardHeader>
                                     <CardTitle className="text-lg font-bold">{article.title}</CardTitle>
                                     <CardDescription>
-                                        <div className="flex items-center gap-4 text-xs flex-wrap pt-2">
-                                            <div className="flex items-center gap-1.5"><Book /> {article.journal}</div>
-                                            <div className="flex items-center gap-1.5"><Calendar /> {article.publication_date}</div>
-                                        </div>
+                                        <span className="flex items-center gap-4 text-xs flex-wrap pt-2">
+                                            <span className="flex items-center gap-1.5"><Book /> {article.journal}</span>
+                                            <span className="flex items-center gap-1.5"><Calendar /> {article.publication_date}</span>
+                                        </span>
                                     </CardDescription>
                                 </CardHeader>
                                 <CardContent className="space-y-3 text-sm flex-grow">
