@@ -1,4 +1,3 @@
-
 'use server';
 
 import { extractArticleContent } from '@/lib/content-extractor';
