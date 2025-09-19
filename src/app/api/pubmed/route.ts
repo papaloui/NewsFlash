@@ -9,6 +9,7 @@ interface PubMedArticle {
     publication_date: string;
     abstract: string;
     pmid: string;
+    doi?: string;
     fullTextUrl?: string;
 }
 
@@ -145,7 +146,7 @@ export async function GET(req: NextRequest) {
             trimValues: true,
             textNodeName: "#text",
             isArray: (name, jpath, isLeafNode, isAttribute) => {
-                 const arrayPaths = new Set(['PubmedArticle', 'Author', 'AbstractText']);
+                 const arrayPaths = new Set(['PubmedArticle', 'Author', 'AbstractText', 'ArticleId']);
                  return arrayPaths.has(name);
             }
         });
@@ -172,7 +173,18 @@ export async function GET(req: NextRequest) {
 
             const abstractNode = get(articleData, 'Abstract');
             const abstract = extractAbstract(abstractNode);
+
+            // Extract DOI
+            const articleIdList = get(article, 'PubmedData.ArticleIdList.ArticleId', []);
+            const doiObject = articleIdList.find((id: any) => id['@_IdType'] === 'doi');
+            const doi = doiObject ? doiObject['#text'] : undefined;
             
+            // Get URL from ELink or fallback to DOI
+            let fullTextUrl = pmidToUrlMap[pmid];
+            if (!fullTextUrl && doi) {
+                fullTextUrl = `https://doi.org/${doi}`;
+            }
+
             const formattedArticle: PubMedArticle = {
                 title,
                 authors,
@@ -180,7 +192,8 @@ export async function GET(req: NextRequest) {
                 publication_date,
                 abstract,
                 pmid,
-                fullTextUrl: pmidToUrlMap[pmid] // Assign the pre-fetched URL
+                doi,
+                fullTextUrl
             };
 
             return formattedArticle;
