@@ -25,6 +25,7 @@ const extractText = (field: any): string => {
         return field['#text'];
     }
     if (typeof field === 'object' && field !== null) {
+        // This handles cases where the title has formatting like <i> or <sub>
         return Object.values(field).flat().map(extractText).join('');
     }
     return 'No title available';
@@ -34,7 +35,7 @@ const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 export async function GET(req: NextRequest) {
     const searchTerm = "strength training OR cardiac rehab OR exercise recovery OR cardiovascular exercise";
-    const retmax = 50; 
+    const retmax = 20; 
 
     try {
         // Step 1: ESearch to get recent PMIDs
@@ -53,6 +54,8 @@ export async function GET(req: NextRequest) {
         }
         const pmidString = pmidList.join(',');
 
+        await sleep(200); // Polite delay
+
         // Step 2: EFetch for metadata
         const efetchUrl = `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=${pmidString}&retmode=xml`;
         console.log(`[PubMed] Fetching article data from: ${efetchUrl}`);
@@ -61,6 +64,8 @@ export async function GET(req: NextRequest) {
             throw new Error(`Failed to fetch from EFetch: ${efetchResponse.statusText}`);
         }
         const xmlText = await efetchResponse.text();
+        
+        await sleep(200); // Polite delay
 
         // Step 3: ELink for full-text URLs (one call for all PMIDs)
         const elinkUrl = `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/elink.fcgi?dbfrom=pubmed&id=${pmidString}&retmode=json`;
@@ -75,6 +80,7 @@ export async function GET(req: NextRequest) {
                 if (!pmid) continue;
 
                 const linksetdbs = get(linkset, 'linksetdbs', []);
+                // Look for the linksetdb that provides full text links
                 const fullTextDb = linksetdbs.find((db: any) => db.linkname === 'pubmed_pubmed_fulltext');
 
                 if (fullTextDb && fullTextDb.links && fullTextDb.links.length > 0) {
