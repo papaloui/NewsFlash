@@ -10,10 +10,9 @@ import { Button } from '@/components/ui/button';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { getPubMedArticles, type PubMedArticle, getFullArticleText } from './actions';
 
-type ArticleWithBody = PubMedArticle & { body?: string; isBodyLoading?: boolean };
 
 export default function FitnessPage() {
-    const [articles, setArticles] = useState<ArticleWithBody[]>([]);
+    const [articles, setArticles] = useState<PubMedArticle[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const { toast } = useToast();
