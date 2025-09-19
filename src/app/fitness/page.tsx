@@ -5,49 +5,29 @@ import { useState } from 'react';
 import { Header } from '@/components/app/header';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
-import { HeartPulse, Loader2, ServerCrash, Sparkles, User, Calendar, Book, ExternalLink, Bot } from 'lucide-react';
+import { HeartPulse, Loader2, ServerCrash, User, Calendar, Book, ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { getPubMedArticles, summarizeArticlesInBatches, type PubMedArticle } from './actions';
+import { getPubMedArticles, type PubMedArticle } from './actions';
 
-type ArticleWithSummary = PubMedArticle & { summary?: string };
 
 export default function FitnessPage() {
-    const [articles, setArticles] = useState<ArticleWithSummary[]>([]);
+    const [articles, setArticles] = useState<PubMedArticle[]>([]);
     const [isLoading, setIsLoading] = useState(false);
-    const [isSummarizing, setIsSummarizing] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const { toast } = useToast();
 
-    const handleFetchAndSummarize = async () => {
+    const handleFetch = async () => {
         setIsLoading(true);
-        setIsSummarizing(false);
         setError(null);
         setArticles([]);
 
         try {
-            // 1. Fetch articles
             const articleResult = await getPubMedArticles();
             if (articleResult.error || !articleResult.articles) {
                 throw new Error(articleResult.error || 'No articles were returned.');
             }
-            const fetchedArticles = articleResult.articles;
-            setArticles(fetchedArticles);
-            setIsLoading(false);
-
-            // 2. Start summarization
-            if (fetchedArticles.length > 0) {
-                setIsSummarizing(true);
-                const summaries = await summarizeArticlesInBatches(fetchedArticles);
-                
-                // 3. Match summaries back to articles
-                setArticles(prevArticles => {
-                    return prevArticles.map(article => {
-                        const matchingSummary = summaries.find(s => s.pmid === article.pmid);
-                        return matchingSummary ? { ...article, summary: matchingSummary.summary } : article;
-                    });
-                });
-            }
+            setArticles(articleResult.articles);
         } catch (err) {
             const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred.';
             setError(errorMessage);
@@ -56,9 +36,8 @@ export default function FitnessPage() {
                 title: 'Operation Failed',
                 description: errorMessage,
             });
-            setIsLoading(false);
         } finally {
-            setIsSummarizing(false);
+            setIsLoading(false);
         }
     };
 
@@ -73,18 +52,18 @@ export default function FitnessPage() {
                             Fitness & Health Research Digest
                         </CardTitle>
                         <CardDescription>
-                            Fetch and summarize the latest research articles on exercise science from PubMed. Articles are from the last 24 hours.
+                            Fetch the latest research articles on exercise science from PubMed. Articles are from the last 24 hours.
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
-                        <Button onClick={handleFetchAndSummarize} disabled={isLoading || isSummarizing}>
-                            {(isLoading || isSummarizing) ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
-                            {isLoading ? 'Fetching Articles...' : (isSummarizing ? 'Summarizing...' : 'Fetch & Summarize Latest')}
+                        <Button onClick={handleFetch} disabled={isLoading}>
+                            {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <HeartPulse className="mr-2 h-4 w-4" />}
+                            {isLoading ? 'Fetching Articles...' : 'Fetch Latest Articles'}
                         </Button>
                     </CardContent>
                 </Card>
 
-                {(isLoading || isSummarizing) && articles.length === 0 && (
+                {isLoading && (
                     <div className="flex justify-center items-center gap-2 text-muted-foreground">
                         <Loader2 className="h-8 w-8 animate-spin" />
                         <span className="text-lg">Processing latest fitness research...</span>
@@ -133,24 +112,6 @@ export default function FitnessPage() {
                                         </AccordionItem>
                                     </Accordion>
 
-                                     {article.summary || isSummarizing ? (
-                                        <Card className="bg-primary/10 border-primary/20 mt-4">
-                                            <CardHeader className="pb-2 pt-4">
-                                                <CardTitle className="text-base flex items-center gap-2"><Bot /> AI Summary</CardTitle>
-                                            </CardHeader>
-                                            <CardContent>
-                                                {article.summary ? (
-                                                    <p className="text-primary/90 text-sm">{article.summary}</p>
-                                                ) : (
-                                                    <div className="flex items-center gap-2 text-primary/80">
-                                                        <Loader2 className="h-4 w-4 animate-spin" />
-                                                        <span>Generating...</span>
-                                                    </div>
-                                                )}
-                                            </CardContent>
-                                        </Card>
-                                     ) : null}
-
                                 </CardContent>
                                 <CardFooter>
                                     <Button asChild variant="outline" size="sm" className="w-full">
@@ -164,7 +125,7 @@ export default function FitnessPage() {
                         ))}
                     </div>
                 )}
-                 {!isLoading && !isSummarizing && !error && articles.length === 0 && (
+                 {!isLoading && !error && articles.length === 0 && (
                     <div className="text-center py-10 border-2 border-dashed rounded-lg">
                         <p className="text-muted-foreground">Click the button above to fetch the latest articles.</p>
                     </div>

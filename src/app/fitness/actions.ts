@@ -1,9 +1,6 @@
 
 'use server';
 
-import { summarizePubMedArticles } from '@/ai/flows/summarize-pubmed-articles';
-import type { SummarizePubMedArticlesInput, SummarizePubMedArticlesOutput } from '@/ai/flows/summarize-pubmed-articles';
-
 export interface PubMedArticle {
     title: string;
     authors: string[];
@@ -29,24 +26,5 @@ export async function getPubMedArticles(): Promise<{ articles?: PubMedArticle[],
         const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
         console.error('Error in getPubMedArticles:', error);
         return { error: errorMessage };
-    }
-}
-
-export async function summarizeArticlesInBatches(articles: PubMedArticle[]): Promise<SummarizePubMedArticlesOutput> {
-     try {
-        const articlesToSummarize: SummarizePubMedArticlesInput = articles.map(a => ({
-            pmid: a.pmid,
-            title: a.title,
-            abstract: a.abstract,
-        }));
-        
-        const result = await summarizePubMedArticles(articlesToSummarize);
-        console.log("===== RAW AI OUTPUT (Server Log) =====");
-        console.log(JSON.stringify(result, null, 2));
-        console.log("======================================");
-        return result;
-    } catch (error) {
-        console.error('Error summarizing pubmed articles in batch:', error);
-        throw new Error('Failed to get summaries from AI.');
     }
 }
