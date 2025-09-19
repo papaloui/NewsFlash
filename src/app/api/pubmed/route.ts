@@ -24,12 +24,58 @@ const extractText = (field: any): string => {
     if (typeof field === 'object' && field !== null && field['#text']) {
         return field['#text'];
     }
+    if (Array.isArray(field)) {
+        return field.map(extractText).join('');
+    }
     if (typeof field === 'object' && field !== null) {
         // This handles cases where the title has formatting like <i> or <sub>
         return Object.values(field).flat().map(extractText).join('');
     }
     return 'No title available';
 };
+
+const extractAbstract = (abstractNode: any): string => {
+    if (!abstractNode) return 'No abstract available.';
+    
+    // Case 1: Abstract is a simple string
+    if (typeof abstractNode === 'string') {
+        return abstractNode;
+    }
+
+    // Case 2: Abstract is an object with a text node
+    if (abstractNode['#text']) {
+        return abstractNode['#text'];
+    }
+    
+    // Case 3: Abstract is an object with AbstractText
+    const abstractTexts = abstractNode.AbstractText;
+    if (!abstractTexts) return 'No abstract available.';
+
+    // If AbstractText is a string
+    if (typeof abstractTexts === 'string') {
+        return abstractTexts;
+    }
+    
+    // If AbstractText is an array of strings or objects
+    if (Array.isArray(abstractTexts)) {
+        return abstractTexts.map(part => {
+            if (typeof part === 'string') {
+                return part;
+            }
+            if (typeof part === 'object' && part !== null) {
+                // For structured abstracts like { '@_Label': 'CONCLUSION', '#text': '...' }
+                const label = part['@_Label'] ? `${part['@_Label']}: ` : '';
+                const text = part['#text'] || '';
+                return `${label}${text}`;
+            }
+            return '';
+        }).join('\n');
+    }
+
+    // Fallback for any other unexpected structure
+    return 'No abstract available.';
+}
+
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -99,7 +145,7 @@ export async function GET(req: NextRequest) {
             trimValues: true,
             textNodeName: "#text",
             isArray: (name, jpath, isLeafNode, isAttribute) => {
-                 const arrayPaths = new Set(['PubmedArticle', 'Author']);
+                 const arrayPaths = new Set(['PubmedArticle', 'Author', 'AbstractText']);
                  return arrayPaths.has(name);
             }
         });
@@ -124,17 +170,15 @@ export async function GET(req: NextRequest) {
             const pubDay = get(pubDate, 'Day', '');
             const publication_date = [pubYear, pubMonth, pubDay].filter(Boolean).join('-');
 
-            const abstractTexts = get(articleData, 'Abstract.AbstractText', []);
-            const abstract = Array.isArray(abstractTexts) 
-                ? abstractTexts.map((t: any) => typeof t === 'object' ? t['#text'] : t).join('\n')
-                : (typeof abstractTexts === 'object' ? abstractTexts['#text'] : abstractTexts);
+            const abstractNode = get(articleData, 'Abstract');
+            const abstract = extractAbstract(abstractNode);
             
             const formattedArticle: PubMedArticle = {
                 title,
                 authors,
                 journal,
                 publication_date,
-                abstract: abstract || 'No abstract available.',
+                abstract,
                 pmid,
                 fullTextUrl: pmidToUrlMap[pmid] // Assign the pre-fetched URL
             };
