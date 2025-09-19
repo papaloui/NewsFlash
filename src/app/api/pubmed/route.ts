@@ -9,6 +9,7 @@ interface PubMedArticle {
     publication_date: string;
     abstract: string;
     pmid: string;
+    fullTextUrl?: string;
 }
 
 const get = (obj: any, path: string, defaultValue: any = null) => {
@@ -31,6 +32,7 @@ const extractText = (field: any): string => {
     return 'No title available';
 };
 
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 export async function GET(req: NextRequest) {
     const searchTerm = "strength training OR cardiac rehab OR exercise recovery OR cardiovascular exercise";
@@ -80,8 +82,9 @@ export async function GET(req: NextRequest) {
         
         const articlesFromXml = get(parsedXml, 'PubmedArticleSet.PubmedArticle', []);
 
-        // Step 4: Format the articles into the desired JSON structure
-        const articles: PubMedArticle[] = articlesFromXml.map((article: any) => {
+        // Step 4: Format the articles into the desired JSON structure and fetch full text links
+        const articles: PubMedArticle[] = [];
+        for (const article of articlesFromXml) {
             const articleData = get(article, 'MedlineCitation.Article');
             const pmid = get(article, 'MedlineCitation.PMID.#text');
 
@@ -103,8 +106,8 @@ export async function GET(req: NextRequest) {
             const abstract = Array.isArray(abstractTexts) 
                 ? abstractTexts.map(t => typeof t === 'object' ? t['#text'] : t).join('\n')
                 : (typeof abstractTexts === 'object' ? abstractTexts['#text'] : abstractTexts);
-
-            return {
+            
+            const formattedArticle: PubMedArticle = {
                 title,
                 authors,
                 journal,
@@ -112,7 +115,34 @@ export async function GET(req: NextRequest) {
                 abstract: abstract || 'No abstract available.',
                 pmid
             };
-        }).filter((article: PubMedArticle) => article.title && article.title !== 'No title available');
+
+            // Step 5: Use ELink to get the full-text URL
+            if (pmid) {
+                const elinkUrl = `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/elink.fcgi?dbfrom=pubmed&id=${pmid}&retmode=json`;
+                console.log(`[PubMed ELink] Fetching full text link for PMID ${pmid} from: ${elinkUrl}`);
+                try {
+                    const elinkResponse = await fetch(elinkUrl);
+                    if (elinkResponse.ok) {
+                        const elinkData = await elinkResponse.json();
+                        const linksetdbs = get(elinkData, 'linksets.0.linksetdbs', []);
+                        const fullTextDb = linksetdbs.find((db: any) => db.linkname === 'pubmed_pubmed_fulltext');
+                        if (fullTextDb && fullTextDb.links && fullTextDb.links.length > 0) {
+                            formattedArticle.fullTextUrl = fullTextDb.links[0];
+                            console.log(`[PubMed ELink] Found full text link: ${formattedArticle.fullTextUrl}`);
+                        }
+                    }
+                } catch (elinkError) {
+                    console.error(`[PubMed ELink] Failed to fetch full text link for PMID ${pmid}`, elinkError);
+                }
+                await sleep(200); // Be polite to the API
+            }
+
+
+            if (formattedArticle.title && formattedArticle.title !== 'No title available') {
+                 articles.push(formattedArticle);
+            }
+        }
+
 
         return NextResponse.json(articles);
 

@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { Header } from '@/components/app/header';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
-import { HeartPulse, Loader2, ServerCrash, User, Calendar, Book, ExternalLink } from 'lucide-react';
+import { HeartPulse, Loader2, ServerCrash, User, Calendar, Book, ExternalLink, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { getPubMedArticles, type PubMedArticle } from './actions';
@@ -113,7 +113,15 @@ export default function FitnessPage() {
                                     </Accordion>
 
                                 </CardContent>
-                                <CardFooter>
+                                <CardFooter className="flex-col sm:flex-row gap-2 items-center">
+                                    {article.fullTextUrl && (
+                                        <Button asChild variant="secondary" size="sm" className="w-full">
+                                            <a href={article.fullTextUrl} target="_blank" rel="noopener noreferrer">
+                                                View Full Article
+                                                <FileText className="ml-2 h-4 w-4" />
+                                            </a>
+                                        </Button>
+                                    )}
                                     <Button asChild variant="outline" size="sm" className="w-full">
                                         <a href={`https://pubmed.ncbi.nlm.nih.gov/${article.pmid}/`} target="_blank" rel="noopener noreferrer">
                                             View on PubMed

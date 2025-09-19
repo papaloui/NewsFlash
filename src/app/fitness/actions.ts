@@ -8,6 +8,7 @@ export interface PubMedArticle {
     publication_date: string;
     abstract: string;
     pmid: string;
+    fullTextUrl?: string;
 }
 
 export async function getPubMedArticles(): Promise<{ articles?: PubMedArticle[], error?: string }> {
