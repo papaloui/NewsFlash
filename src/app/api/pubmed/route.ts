@@ -16,6 +16,22 @@ const get = (obj: any, path: string, defaultValue: any = null) => {
     return value === undefined ? defaultValue : value;
 };
 
+// Helper function to extract text from a potentially complex title object
+const extractText = (field: any): string => {
+    if (typeof field === 'string') {
+        return field;
+    }
+    if (typeof field === 'object' && field !== null && field['#text']) {
+        return field['#text'];
+    }
+    if (typeof field === 'object' && field !== null) {
+        // Fallback for cases with nested tags like <i> or <sub>
+        return Object.values(field).flat().map(extractText).join('');
+    }
+    return 'No title available';
+};
+
+
 export async function GET(req: NextRequest) {
     const searchTerm = "strength training OR cardiac rehab OR exercise recovery OR cardiovascular exercise";
     const retmax = 50; // Number of articles to retrieve
@@ -69,7 +85,8 @@ export async function GET(req: NextRequest) {
             const articleData = get(article, 'MedlineCitation.Article');
             const pmid = get(article, 'MedlineCitation.PMID.#text');
 
-            const title = get(articleData, 'ArticleTitle', 'No title available');
+            const titleField = get(articleData, 'ArticleTitle', 'No title available');
+            const title = extractText(titleField);
             
             const authorsList = get(articleData, 'AuthorList.Author', []);
             const authors = authorsList.map((author: any) => `${get(author, 'ForeName', '')} ${get(author, 'LastName', '')}`.trim()).filter((name: string) => name);
