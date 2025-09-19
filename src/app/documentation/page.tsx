@@ -4,7 +4,7 @@
 import { Header } from '@/components/app/header';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { FileCode, Telescope, Target, Server, FileText, Landmark, Building, Rss, Link as LinkIcon, BookMarked, Newspaper } from 'lucide-react';
+import { FileCode, Telescope, Target, Server, FileText, Landmark, Building, Rss, Link as LinkIcon, BookMarked, Newspaper, HeartPulse } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 
 const FeatureCard = ({ title, icon, description, children }: { title: string, icon: React.ReactNode, description: string, children: React.ReactNode }) => (
@@ -49,6 +49,42 @@ export default function DocumentationPage() {
                 </Card>
 
                 <div className="space-y-6">
+                    <FeatureCard title="Fitness & Health Digest" icon={<HeartPulse />} description="Fetches and summarizes daily exercise science research from PubMed.">
+                        <Accordion type="single" collapsible className="w-full">
+                            <AccordionItem value="item-1">
+                                <AccordionTrigger>View Details</AccordionTrigger>
+                                <AccordionContent className="space-y-4 pt-2">
+                                    <Section title="Current Logic" icon={<Target />}>
+                                        <p>A custom API route (`/api/pubmed`) uses the NCBI E-utilities API to fetch recent articles. It first uses `esearch` to find PMIDs for articles from the last day related to exercise science, then uses `efetch` to get the full metadata for those PMIDs.</p>
+                                        <p>On the frontend, clicking the "Fetch & Summarize" button calls this API route. The returned article abstracts are then passed to a dedicated AI flow (`summarize-pubmed-articles.ts`) to generate lay-friendly summaries.</p>
+                                        <div className="flex items-start gap-2">
+                                            <LinkIcon className="h-4 w-4 mt-1" />
+                                            <div>
+                                                <span className="font-semibold">Search Term:</span>
+                                                <p className="break-all text-xs">"strength training OR cardiac rehab OR exercise recovery OR cardiovascular exercise"</p>
+                                            </div>
+                                        </div>
+                                    </Section>
+                                    <Section title="Technology Stack" icon={<Server />}>
+                                        <p>The backend API route uses <Badge variant="secondary">fast-xml-parser</Badge> to handle the XML response from PubMed's EFetch API.</p>
+                                        <p>The AI flow (`summarize-pubmed-articles.ts`) uses <Badge variant="secondary">Gemini</Badge> to create a concise summary from each article's abstract.</p>
+                                    </Section>
+                                    <Section title="Future Roadmap" icon={<Telescope />}>
+                                        <p>
+                                            <span className="font-semibold text-foreground">1. Caching:</span> Implement caching for the PubMed API results to avoid re-fetching the same data within a short period.
+                                        </p>
+                                        <p>
+                                            <span className="font-semibold text-foreground">2. User-Defined Topics:</span> Allow users to define their own search terms and topics of interest for a personalized research feed.
+                                        </p>
+                                         <p>
+                                            <span className="font-semibold text-foreground">3. Historical View:</span> Allow users to select a date to view articles and summaries from previous days.
+                                        </p>
+                                    </Section>
+                                </AccordionContent>
+                            </AccordionItem>
+                        </Accordion>
+                    </FeatureCard>
+
                     <FeatureCard title="Ontario Debates Summarizer" icon={<FileText />} description="Summarizes legislative debates from the Legislative Assembly of Ontario.">
                         <Accordion type="single" collapsible className="w-full">
                             <AccordionItem value="item-1">
@@ -200,26 +236,25 @@ export default function DocumentationPage() {
                                 <AccordionTrigger>View Details</AccordionTrigger>
                                 <AccordionContent className="space-y-4 pt-2">
                                      <Section title="Current Logic" icon={<Target />}>
-                                        <p>This is a multi-step scraping process. It starts at a search page, looks for a specific volume, navigates to that result page, and then finds the PDF download link on the second page. The process is hardcoded to look for "Ontario Gazette Volume 158 Issue 37".</p>
+                                        <p>This feature uses a background job to handle the large PDF. It fetches a hardcoded PDF directly, converts it to a Base64 data URI, and passes it to an AI flow for summarization. The frontend polls to check the job status.</p>
                                          <div className="flex items-start gap-2">
                                             <LinkIcon className="h-4 w-4 mt-1" />
                                             <div>
                                                 <span className="font-semibold">Key URLs:</span>
-                                                <p className="break-all text-xs">Initial Search Page: https://www.ontario.ca/search/ontario-gazette</p>
+                                                <p className="break-all text-xs">https://www.ontario.ca/files/2025-09/ontariogazette_158-37.pdf</p>
                                             </div>
                                         </div>
                                     </Section>
                                     <Section title="Technology Stack" icon={<Server />}>
-                                        <p>Uses <Badge variant="secondary">JSDOM</Badge> to scrape multiple pages to find the final PDF link. The PDF is fetched and passed as a Base64 data URI to the `summarize-ontario-gazette.ts` AI flow.</p>
-                                        <p>The AI flow uses <Badge variant="secondary">Gemini 1.5 Flash</Badge> to understand the PDF directly.</p>
-                                        <p>Includes extensive front-end debugging to show the URL and raw HTML of each step if the process fails.</p>
+                                        <p>The AI flow (`summarize-ontario-gazette.ts`) uses <Badge variant="secondary">Gemini 1.5 Flash</Badge> to understand the PDF directly. The background job is managed using an in-memory cache in the server action.</p>
+                                        <p>The frontend uses a polling mechanism (`setInterval`) to check on the long-running summarization task.</p>
                                     </Section>
                                     <Section title="Future Roadmap" icon={<Telescope />}>
                                         <p>
-                                            <span className="font-semibold text-foreground">1. Dynamic Search Term:</span> Instead of searching for a hardcoded volume and issue, implement logic to find the most recent gazette available.
+                                            <span className="font-semibold text-foreground">1. Dynamic URL Fetching:</span> Build a reliable scraper to find the URL for the most recent gazette instead of using a hardcoded one.
                                         </p>
                                         <p>
-                                            <span className="font-semibold text-foreground">2. User Input:</span> Allow users to enter a volume and issue number to search for specific historical gazettes.
+                                            <span className="font-semibold text-foreground">2. Persistent Jobs:</span> Replace the in-memory job cache with a persistent solution like Firestore or Redis to handle deployments and multiple server instances.
                                         </p>
                                     </Section>
                                 </AccordionContent>
@@ -262,3 +297,4 @@ export default function DocumentationPage() {
 }
 
     
+

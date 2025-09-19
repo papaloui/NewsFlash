@@ -1,4 +1,4 @@
-import { Rss, Landmark, FileText, BookMarked, Building, BookCopy, FileCode, Newspaper } from 'lucide-react';
+import { Rss, Landmark, FileText, BookMarked, Building, BookCopy, FileCode, Newspaper, HeartPulse } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '../ui/button';
 import { Separator } from '../ui/separator';
@@ -17,6 +17,12 @@ export function Header() {
         </Link>
 
         <nav className="flex items-center gap-2 flex-wrap">
+            <Button asChild variant="outline">
+              <Link href="/fitness">
+                <HeartPulse className="mr-2 h-4 w-4" />
+                Fitness
+              </Link>
+            </Button>
             <Button asChild variant="outline">
               <Link href="/house-of-commons">
                 <Landmark className="mr-2 h-4 w-4" />
