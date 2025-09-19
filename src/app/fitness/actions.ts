@@ -65,7 +65,7 @@ const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 
 export async function getPubMedArticles(): Promise<{ articles?: PubMedArticle[], error?: string }> {
-    const searchTerm = "strength training OR cardiac rehab OR exercise recovery OR cardiovascular exercise";
+    const searchTerm = "strength training";
     const retmax = 20;
 
     try {
