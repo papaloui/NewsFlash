@@ -5,14 +5,15 @@ import { useState } from 'react';
 import { Header } from '@/components/app/header';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
-import { HeartPulse, Loader2, ServerCrash, User, Calendar, Book, ExternalLink, FileText } from 'lucide-react';
+import { HeartPulse, Loader2, ServerCrash, User, Calendar, Book, ExternalLink, FileText, BookOpen } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { getPubMedArticles, type PubMedArticle } from './actions';
+import { getPubMedArticles, type PubMedArticle, getFullArticleText } from './actions';
 
+type ArticleWithBody = PubMedArticle & { body?: string; isBodyLoading?: boolean };
 
 export default function FitnessPage() {
-    const [articles, setArticles] = useState<PubMedArticle[]>([]);
+    const [articles, setArticles] = useState<ArticleWithBody[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const { toast } = useToast();
@@ -38,6 +39,22 @@ export default function FitnessPage() {
             });
         } finally {
             setIsLoading(false);
+        }
+    };
+
+    const handleFetchBody = async (pmid: string) => {
+        setArticles(prev => prev.map(a => a.pmid === pmid ? { ...a, isBodyLoading: true } : a));
+        
+        const article = articles.find(a => a.pmid === pmid);
+        if (!article || !article.fullTextUrl) return;
+
+        try {
+            const body = await getFullArticleText(article.fullTextUrl);
+            setArticles(prev => prev.map(a => a.pmid === pmid ? { ...a, body, isBodyLoading: false } : a));
+        } catch (error) {
+            console.error(`Failed to fetch content for ${article.fullTextUrl}`, error);
+            const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
+            setArticles(prev => prev.map(a => a.pmid === pmid ? { ...a, body: `Could not load article content: ${errorMessage}`, isBodyLoading: false } : a));
         }
     };
 
@@ -103,13 +120,35 @@ export default function FitnessPage() {
                                         </div>
                                     </div>
                                     
-                                    <Accordion type="single" collapsible>
+                                    <Accordion type="single" collapsible className="w-full">
                                         <AccordionItem value="abstract">
                                             <AccordionTrigger>View Abstract</AccordionTrigger>
                                             <AccordionContent className="whitespace-pre-wrap font-body text-xs leading-relaxed">
                                                 {article.abstract}
                                             </AccordionContent>
                                         </AccordionItem>
+                                        {article.fullTextUrl && (
+                                            <AccordionItem value="full-text">
+                                                <AccordionTrigger onClick={() => !article.body && handleFetchBody(article.pmid)}>
+                                                    <span className="flex items-center gap-2">
+                                                        <BookOpen className="h-4 w-4" />
+                                                        Read Full Article
+                                                    </span>
+                                                </AccordionTrigger>
+                                                <AccordionContent>
+                                                    {article.isBodyLoading ? (
+                                                        <div className="pt-3 border-t flex items-center gap-2 text-muted-foreground">
+                                                            <Loader2 className="h-4 w-4 animate-spin" />
+                                                            <span>Fetching article content...</span>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="pt-3 border-t">
+                                                            <p className="text-sm text-muted-foreground whitespace-pre-wrap">{article.body}</p>
+                                                        </div>
+                                                    )}
+                                                </AccordionContent>
+                                            </AccordionItem>
+                                        )}
                                     </Accordion>
 
                                 </CardContent>
@@ -117,7 +156,7 @@ export default function FitnessPage() {
                                     {article.fullTextUrl && (
                                         <Button asChild variant="secondary" size="sm" className="w-full">
                                             <a href={article.fullTextUrl} target="_blank" rel="noopener noreferrer">
-                                                View Full Article
+                                                View on Publisher Site
                                                 <FileText className="ml-2 h-4 w-4" />
                                             </a>
                                         </Button>

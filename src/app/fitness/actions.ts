@@ -1,6 +1,8 @@
 
 'use server';
 
+import { getArticleContent as extractArticle } from "@/app/actions";
+
 export interface PubMedArticle {
     title: string;
     authors: string[];
@@ -28,4 +30,11 @@ export async function getPubMedArticles(): Promise<{ articles?: PubMedArticle[],
         console.error('Error in getPubMedArticles:', error);
         return { error: errorMessage };
     }
+}
+
+export async function getFullArticleText(url: string): Promise<string> {
+    if (!url) {
+        return "No URL provided.";
+    }
+    return await extractArticle(url);
 }
