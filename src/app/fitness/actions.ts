@@ -3,6 +3,7 @@
 
 import { getArticleContent as extractArticle } from "@/app/actions";
 import { XMLParser } from "fast-xml-parser";
+import { summarizeFullArticleText } from "@/ai/flows/summarize-full-article";
 
 export interface PubMedArticle {
     title: string;
@@ -15,6 +16,8 @@ export interface PubMedArticle {
     fullTextUrl?: string;
     body?: string;
     isBodyLoading?: boolean;
+    summary?: string;
+    isSummarizing?: boolean;
 }
 
 const get = (obj: any, path: string, defaultValue: any = null) => {
@@ -142,4 +145,18 @@ export async function getFullArticleText(url: string): Promise<string> {
         return "No URL provided.";
     }
     return await extractArticle(url);
+}
+
+export async function summarizeFullArticle(articleText: string): Promise<string> {
+    if (!articleText) {
+        return "No article text provided to summarize.";
+    }
+    try {
+        const result = await summarizeFullArticleText({ articleText });
+        return result.summary;
+    } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : "An unknown AI error occurred.";
+        console.error("Error summarizing article:", error);
+        throw new Error(errorMessage);
+    }
 }

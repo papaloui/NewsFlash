@@ -5,10 +5,10 @@ import { useState } from 'react';
 import { Header } from '@/components/app/header';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
-import { HeartPulse, Loader2, ServerCrash, User, Calendar, Book, ExternalLink, FileText, BookOpen } from 'lucide-react';
+import { HeartPulse, Loader2, ServerCrash, User, Calendar, Book, ExternalLink, FileText, BookOpen, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { getPubMedArticles, type PubMedArticle, getFullArticleText } from './actions';
+import { getPubMedArticles, type PubMedArticle, getFullArticleText, summarizeFullArticle } from './actions';
 
 
 export default function FitnessPage() {
@@ -54,6 +54,22 @@ export default function FitnessPage() {
             console.error(`Failed to fetch content for ${article.fullTextUrl}`, error);
             const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
             setArticles(prev => prev.map(a => a.pmid === pmid ? { ...a, body: `Could not load article content: ${errorMessage}`, isBodyLoading: false } : a));
+        }
+    };
+
+    const handleSummarize = async (pmid: string) => {
+        setArticles(prev => prev.map(a => a.pmid === pmid ? { ...a, isSummarizing: true } : a));
+        
+        const article = articles.find(a => a.pmid === pmid);
+        if (!article || !article.body) return;
+
+        try {
+            const summary = await summarizeFullArticle(article.body);
+            setArticles(prev => prev.map(a => a.pmid === pmid ? { ...a, summary, isSummarizing: false } : a));
+        } catch (error) {
+            console.error(`Failed to summarize article ${pmid}`, error);
+            const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
+            setArticles(prev => prev.map(a => a.pmid === pmid ? { ...a, summary: `Could not generate summary: ${errorMessage}`, isSummarizing: false } : a));
         }
     };
 
@@ -141,8 +157,30 @@ export default function FitnessPage() {
                                                             <span>Fetching article content...</span>
                                                         </div>
                                                     ) : (
-                                                        <div className="pt-3 border-t">
+                                                        <div className="pt-3 border-t space-y-4">
                                                             <p className="text-sm text-muted-foreground whitespace-pre-wrap">{article.body}</p>
+                                                            {article.body && !article.body.startsWith('Could not load') && (
+                                                                <div>
+                                                                    <Button onClick={() => handleSummarize(article.pmid)} disabled={article.isSummarizing}>
+                                                                        {article.isSummarizing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
+                                                                        {article.isSummarizing ? 'Summarizing...' : 'Summarize Article'}
+                                                                    </Button>
+
+                                                                    {article.isSummarizing && !article.summary &&(
+                                                                        <div className="mt-4 flex items-center gap-2 text-muted-foreground">
+                                                                            <Loader2 className="h-4 w-4 animate-spin" />
+                                                                            <span>Generating summary...</span>
+                                                                        </div>
+                                                                    )}
+
+                                                                    {article.summary && (
+                                                                        <div className="mt-4 p-4 bg-primary/10 rounded-md">
+                                                                            <h4 className="font-semibold mb-2">AI Summary</h4>
+                                                                            <p className="text-sm whitespace-pre-wrap">{article.summary}</p>
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            )}
                                                         </div>
                                                     )}
                                                 </AccordionContent>
