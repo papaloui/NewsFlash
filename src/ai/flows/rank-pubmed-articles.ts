@@ -113,7 +113,3 @@ Title: ${article.title}`
     return sanitizedOutput;
   }
 );
-
-
-
-
