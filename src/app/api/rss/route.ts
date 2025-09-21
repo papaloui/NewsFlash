@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { XMLParser } from "fast-xml-parser";
 import type { Article } from "@/lib/types";
+import { format } from 'date-fns';
 
 // Helper to safely get a value from a deeply nested object
 const get = (obj: any, path: string, defaultValue: any = null) => {
@@ -18,14 +19,20 @@ const parseArticle = (item: any, channel: any): Article | null => {
     if (!title || !link) return null;
 
     // Standardize publication date parsing
-    const pubDate = get(item, 'pubDate', get(item, 'published'));
-    const publicationDate = pubDate ? new Date(pubDate).toLocaleDateString() : new Date().toLocaleDateString();
+    const pubDateString = get(item, 'pubDate', get(item, 'published'));
+    let publicationDate: string;
+    try {
+        publicationDate = pubDateString ? format(new Date(pubDateString), 'PPP') : format(new Date(), 'PPP');
+    } catch (e) {
+        // If date is invalid, fallback to today's date
+        publicationDate = format(new Date(), 'PPP');
+    }
 
     // Standardize description/summary parsing
-    const summary = get(item, 'description', get(item, 'media:description.#text', 'No summary available.'));
+    let summary = get(item, 'description', get(item, 'media:description.#text', 'No summary available.'));
     
-    // Clean up summary (remove HTML tags)
-    const cleanedSummary = summary.replace(/<[^>]+>/g, '').trim();
+    // Clean up summary (remove HTML tags and extra whitespace)
+    const cleanedSummary = summary.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
 
     return {
         headline: title,
@@ -87,7 +94,13 @@ export async function POST(req: NextRequest) {
     await Promise.all(fetchPromises);
     
     // Sort articles by publication date, newest first
-    allArticles.sort((a, b) => new Date(b.publicationDate).getTime() - new Date(a.publicationDate).getTime());
+    allArticles.sort((a, b) => {
+        try {
+            return new Date(b.publicationDate).getTime() - new Date(a.publicationDate).getTime();
+        } catch (e) {
+            return 0; // Don't sort if dates are invalid
+        }
+    });
 
     return NextResponse.json(allArticles);
 }
