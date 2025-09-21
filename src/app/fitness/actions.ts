@@ -184,20 +184,45 @@ export async function scrapeArticleContent(url: string): Promise<ScrapeResult> {
         log.push(`4. Reading HTML content from response.`);
         const html = await response.text();
         
-        log.push(`5. Parsing HTML with JSDOM and Readability to extract main content.`);
-        const doc = new JSDOM(html, { url });
-        const reader = new Readability(doc.window.document);
+        log.push(`5. Parsing HTML with JSDOM.`);
+        const doc = new JSDOM(html, { url }).window.document;
+
+        // --- Primary Method: Readability ---
+        log.push(`6. Attempting extraction with @mozilla/readability.`);
+        const reader = new Readability(doc);
         const article = reader.parse();
 
-        if (article && article.textContent) {
-            log.push(`6. Success: Extracted content length: ${article.textContent.trim().length} characters.`);
+        if (article && article.textContent && article.textContent.length > 200) {
+            log.push(`7. Success (Readability): Extracted content length: ${article.textContent.trim().length} characters.`);
             return { content: article.textContent.trim(), error: null, log };
         } else {
-            log.push(`6. Warning: Readability could not find main content. Returning raw text from body as fallback.`);
-            const bodyMatch = html.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
-            const fallbackText = bodyMatch ? bodyMatch[1].replace(/<[^>]+>/g, ' ').replace(/\s\s+/g, ' ').trim() : "Could not find body tag.";
-            return { content: fallbackText, error: "Readability failed, used fallback.", log };
+             log.push(`8. Readability found no content or content was too short. Trying fallback selectors.`);
         }
+
+        // --- Fallback Method: Common Selectors ---
+        const fallbackSelectors = [
+            '.core-container',      // From user example
+            'article',
+            '.article-body',
+            '[role="main"]',
+            '#main-content',
+            '#content',
+            '.post-content',
+        ];
+
+        for (const selector of fallbackSelectors) {
+            const element = doc.querySelector(selector);
+            if (element && element.textContent && element.textContent.trim().length > 200) {
+                log.push(`9. Success (Fallback Selector): Found content using selector '${selector}'. Length: ${element.textContent.trim().length} characters.`);
+                // Basic text cleanup
+                const content = element.textContent.replace(/\s\s+/g, ' ').trim();
+                return { content, error: null, log };
+            }
+        }
+        
+        log.push(`10. All methods failed. No meaningful content could be extracted.`);
+        return { content: null, error: "Readability and all fallback selectors failed to find meaningful content.", log };
+
 
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
