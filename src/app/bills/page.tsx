@@ -22,14 +22,6 @@ interface Bill {
     LatestBillTextTypeId: number;
 }
 
-const getStatusBadgeVariant = (status: string) => {
-    const lowerStatus = status ? status.toLowerCase() : '';
-    if (lowerStatus.includes('royal assent')) return 'default';
-    if (lowerStatus.includes('defeated') || lowerStatus.includes('negatived')) return 'destructive';
-    if (lowerStatus.includes('reading') || lowerStatus.includes('introduced')) return 'secondary';
-    return 'outline';
-}
-
 export default async function BillsPage() {
     const data = await getBillsData();
 
@@ -82,4 +74,3 @@ export default async function BillsPage() {
         </div>
     );
 }
-
