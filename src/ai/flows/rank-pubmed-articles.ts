@@ -64,7 +64,8 @@ const rankPubMedArticlesFlow = ai.defineFlow(
     outputSchema: RankPubMedArticlesOutputSchema,
   },
   async (articles) => {
-    // Defensive coding: Ensure all PMIDs are strings before processing.
+    // Defensive coding: Ensure all PMIDs are strings before any other processing.
+    // This fixes the schema validation error where PMIDs are passed as numbers.
     const articlesWithSanitizedPmids = articles.map(article => ({
       ...article,
       pmid: String(article.pmid),
@@ -95,7 +96,7 @@ Title: ${article.title}`
          throw new Error(`AI returned text that was not valid JSON.\n\n--- RAW AI TEXT OUTPUT ---\n${rawTextOutput}`);
     }
 
-    // Defensive coding: manually convert pmid to string to fix AI output errors.
+    // Defensive coding: manually convert pmid to string again to fix AI output errors.
     const sanitizedOutput = parsedOutput.map((article: any) => ({
       pmid: String(article.pmid),
       title: article.title,
@@ -112,4 +113,5 @@ Title: ${article.title}`
     return sanitizedOutput;
   }
 );
+
 
