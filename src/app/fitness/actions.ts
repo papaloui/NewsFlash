@@ -3,6 +3,8 @@
 
 import { rankPubMedArticles, type RankPubMedArticlesInput } from "@/ai/flows/rank-pubmed-articles";
 import { XMLParser } from "fast-xml-parser";
+import * as tar from 'tar';
+import { Readable } from 'stream';
 
 export interface PubMedArticle {
     title: string;
@@ -12,6 +14,7 @@ export interface PubMedArticle {
     abstract: string;
     pmid: string; // Ensure pmid is consistently a string
     doi?: string;
+    pmcid?: string;
 }
 
 const get = (obj: any, path: string, defaultValue: any = null) => {
@@ -94,9 +97,8 @@ export async function getAndRankPubMedArticles(): Promise<{ articles?: PubMedArt
         
         articlesFromXml.forEach((article: any) => {
             const articleData = get(article, 'MedlineCitation.Article');
-            // Ensure PMID is a string from the very beginning.
             const pmidValue = get(article, 'MedlineCitation.PMID.#text');
-            if (!pmidValue) return; // Skip if no PMID
+            if (!pmidValue) return;
             const pmid = String(pmidValue);
 
             const title = extractText(get(articleData, 'ArticleTitle', 'No title available'));
@@ -111,10 +113,14 @@ export async function getAndRankPubMedArticles(): Promise<{ articles?: PubMedArt
             const publication_date = [pubYear, pubMonth, pubDay].filter(Boolean).join('-');
 
             const abstract = extractAbstract(get(articleData, 'Abstract'));
-            const doiObject = get(article, 'PubmedData.ArticleIdList.ArticleId', []).find((id: any) => id['@_IdType'] === 'doi');
-            const doi = doiObject ? doiObject['#text'] : undefined;
             
-            const articleObject: PubMedArticle = { title, authors, journal, publication_date, abstract, pmid, doi };
+            const articleIdList = get(article, 'PubmedData.ArticleIdList.ArticleId', []);
+            const doiObject = articleIdList.find((id: any) => id['@_IdType'] === 'doi');
+            const doi = doiObject ? doiObject['#text'] : undefined;
+            const pmcidObject = articleIdList.find((id: any) => id['@_IdType'] === 'pmc');
+            const pmcid = pmcidObject ? pmcidObject['#text'] : undefined;
+            
+            const articleObject: PubMedArticle = { title, authors, journal, publication_date, abstract, pmid, doi, pmcid };
 
             if (articleObject.title !== 'No title available') {
                  allArticlesMap.set(pmid, articleObject);
@@ -145,7 +151,6 @@ export async function getAndRankPubMedArticles(): Promise<{ articles?: PubMedArt
     }
 }
 
-
 function parseNxmlBody(node: any): string {
     if (!node) return '';
     if (typeof node === 'string') return node + ' ';
@@ -156,65 +161,137 @@ function parseNxmlBody(node: any): string {
         text += node['#text'] + ' ';
     }
     
-    // Recursively parse child nodes
     for (const key in node) {
-        if (key !== '#text' && key !== '@_format' && key !== '@_id' && key !== '@_sec-type') {
+        if (key !== '#text' && !key.startsWith('@_')) {
             text += parseNxmlBody(node[key]);
         }
     }
     
-    // Add line breaks for paragraphs
     if(node.p) text += '\n\n';
 
     return text;
 }
 
 
-export async function getArticleXmlText(pmid: string): Promise<string> {
-    const url = `http://pmc.jensenlab.org/pmid/${pmid}.nxml`;
-    console.log(`[Request Log] Fetching article XML from: ${url}`);
-    
-    try {
-        const response = await fetch(url);
+async function convertPmidToPmcid(pmid: string): Promise<string> {
+    const url = `https://www.ncbi.nlm.nih.gov/pmc/utils/idconv/v1.0/?ids=${pmid}&format=json`;
+    console.log(`[ID Converter] Fetching PMCID for PMID ${pmid} from ${url}`);
+    const response = await fetch(url);
+    if (!response.ok) {
+        throw new Error(`ID Converter API failed with status ${response.status}`);
+    }
+    const data = await response.json();
+    const record = data.records?.[0];
+    if (record && record.pmcid) {
+        return record.pmcid;
+    }
+    throw new Error(`PMCID not found for PMID ${pmid}. The article may not be in PubMed Central.`);
+}
 
-        if (!response.ok) {
-            if (response.status === 404) {
-                return `Error: Full text not found in the PMC Open Access mirror for PMID ${pmid}. The article may not be part of the open access subset.`;
-            }
-            throw new Error(`Failed to fetch article XML (status: ${response.status}) from ${url}`);
+export async function getArticleFullText(pmid: string): Promise<string> {
+    try {
+        // Step 1: Convert PMID to PMCID
+        const pmcid = await convertPmidToPmcid(pmid);
+        await sleep(200);
+
+        // Step 2: Use PMCID to query the OA Web Service API
+        const oaUrl = `https://www.ncbi.nlm.nih.gov/pmc/utils/oa/oa.fcgi?id=${pmcid}`;
+        console.log(`[OA API] Fetching download link for ${pmcid} from ${oaUrl}`);
+        const oaResponse = await fetch(oaUrl);
+        if (!oaResponse.ok) {
+            throw new Error(`OA API failed with status ${oaResponse.status}`);
         }
+        const oaXmlText = await oaResponse.text();
+
+        const parser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: "@_" });
+        const oaData = parser.parse(oaXmlText);
         
-        const xmlText = await response.text();
+        const tgzLink = get(oaData, 'OA.records.record.link')?.find((l: any) => l['@_format'] === 'tgz');
+        if (!tgzLink || !tgzLink['@_href']) {
+            return `Error: Full text not available in the PMC Open Access subset for PMCID ${pmcid}.`;
+        }
+
+        const ftpUrl = tgzLink['@_href'];
+        console.log(`[OA API] Found .tar.gz link: ${ftpUrl}`);
+        await sleep(200);
+
+        // Step 3: Fetch the .tar.gz file
+        const ftpResponse = await fetch(ftpUrl);
+        if (!ftpResponse.ok) {
+            throw new Error(`Failed to download .tar.gz file from ${ftpUrl}: Status ${ftpResponse.status}`);
+        }
+
+        // Step 4: Decompress and find the .nxml file
+        const arrayBuffer = await ftpResponse.arrayBuffer();
+        const buffer = Buffer.from(arrayBuffer);
+
+        let nxmlContent: string | null = null;
         
-        const parser = new XMLParser({
-            ignoreAttributes: false,
-            attributeNamePrefix: "@_",
-            parseTagValue: true,
+        const readableStream = Readable.from(buffer);
+        const parserStream = readableStream.pipe(new tar.Parse());
+
+        await new Promise<void>((resolve, reject) => {
+            parserStream.on('entry', (entry: tar.ReadEntry) => {
+                if (entry.path.endsWith('.nxml')) {
+                    console.log(`[TAR] Found .nxml file: ${entry.path}`);
+                    let content = '';
+                    entry.on('data', chunk => {
+                        content += chunk.toString('utf-8');
+                    });
+                    entry.on('end', () => {
+                        nxmlContent = content;
+                        resolve(); 
+                    });
+                } else {
+                    entry.resume(); // Skip other files
+                }
+            });
+
+            parserStream.on('end', () => {
+                if (nxmlContent === null) {
+                    reject(new Error('Could not find an .nxml file in the archive.'));
+                } else {
+                    resolve();
+                }
+            });
+
+            parserStream.on('error', (err) => {
+                reject(err);
+            });
+        });
+        
+        if (!nxmlContent) {
+            throw new Error("Extraction completed but NXML content is missing.");
+        }
+
+        // Step 5: Parse the .nxml content
+        const nxmlParser = new XMLParser({
+            ignoreAttributes: true,
             trimValues: true,
             textNodeName: "#text",
         });
 
-        const parsedXml = parser.parse(xmlText);
-        const bodyNode = get(parsedXml, 'article.body');
+        const parsedNxml = nxmlParser.parse(nxmlContent);
+        const bodyNode = get(parsedNxml, 'article.body');
 
         if (!bodyNode) {
-            return "Error: Could not find the 'body' of the article in the XML file. The format might be unexpected.";
+            return "Error: Could not find the 'body' of the article in the NXML file.";
         }
 
         const fullText = parseNxmlBody(bodyNode);
         const cleanedText = fullText.replace(/\s\s+/g, ' ').trim();
         
         if (cleanedText.length < 100) {
-            return "Error: Extracted very little text from the XML. It may be a stub or an unsupported format.";
+            return "Error: Extracted very little text from the NXML. It may be a stub or an unsupported format.";
         }
 
         return cleanedText;
 
     } catch (error) {
-        console.error(`Error fetching or parsing article XML for PMID ${pmid}:`, error);
+        console.error(`Error fetching or parsing full article for PMID ${pmid}:`, error);
         if (error instanceof Error) {
             return `Error: ${error.message}`;
         }
-        return "An unknown error occurred while fetching the article XML.";
+        return "An unknown error occurred while fetching the article text.";
     }
 }

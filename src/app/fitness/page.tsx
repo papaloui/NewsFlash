@@ -7,7 +7,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { HeartPulse, Loader2, ServerCrash, User, ExternalLink, Trophy, Sparkles, BookOpen } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { getAndRankPubMedArticles, getArticleXmlText, type PubMedArticle } from './actions';
+import { getAndRankPubMedArticles, getArticleFullText, type PubMedArticle } from './actions';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 
 type ArticleWithText = PubMedArticle & {
@@ -53,7 +53,7 @@ export default function FitnessPage() {
         setArticles(prev => prev.map(a => a.pmid === pmid ? { ...a, isFetchingText: true, textError: undefined } : a));
 
         try {
-            const text = await getArticleXmlText(pmid);
+            const text = await getArticleFullText(pmid);
             if (text.startsWith("Error:")) {
                 throw new Error(text);
             }
@@ -152,13 +152,13 @@ export default function FitnessPage() {
                                                 {article.isFetchingText ? (
                                                 <div className="pt-3 border-t flex items-center gap-2 text-muted-foreground">
                                                     <Loader2 className="h-4 w-4 animate-spin" />
-                                                    <span>Fetching article content...</span>
+                                                    <span>Fetching and processing full text... This may take a moment.</span>
                                                 </div>
                                                 ) : article.textError ? (
                                                     <p className="pt-3 border-t text-sm text-destructive whitespace-pre-wrap font-mono">{article.textError}</p>
                                                 ) : article.fullText ? (
                                                 <div className="pt-3 border-t">
-                                                    <p className="text-sm text-muted-foreground whitespace-pre-wrap max-h-60 overflow-y-auto">{article.fullText}</p>
+                                                    <p className="text-sm text-muted-foreground whitespace-pre-wrap max-h-96 overflow-y-auto">{article.fullText}</p>
                                                 </div>
                                                 ) : null}
                                             </AccordionContent>
