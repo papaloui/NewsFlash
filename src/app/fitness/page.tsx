@@ -5,14 +5,20 @@ import { useState } from 'react';
 import { Header } from '@/components/app/header';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
-import { HeartPulse, Loader2, ServerCrash, User, Calendar, Book, ExternalLink, FileText, BookOpen, Sparkles } from 'lucide-react';
+import { HeartPulse, Loader2, ServerCrash, User, ExternalLink, Trophy, Sparkles, BookOpen } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { getAndRankPubMedArticles, type PubMedArticle } from './actions';
+import { getArticleContent } from '../actions';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { getPubMedArticles, type PubMedArticle, getFullArticleText, summarizeFullArticle } from './actions';
 
+type ArticleWithText = PubMedArticle & {
+    fullText?: string;
+    isFetchingText?: boolean;
+    textError?: string;
+};
 
 export default function FitnessPage() {
-    const [articles, setArticles] = useState<PubMedArticle[]>([]);
+    const [articles, setArticles] = useState<ArticleWithText[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const { toast } = useToast();
@@ -23,53 +29,42 @@ export default function FitnessPage() {
         setArticles([]);
 
         try {
-            const articleResult = await getPubMedArticles();
-            if (articleResult.error || !articleResult.articles) {
-                throw new Error(articleResult.error || 'No articles were returned.');
+            const result = await getAndRankPubMedArticles();
+            if (result.error || !result.articles) {
+                throw new Error(result.error || 'No articles were returned.');
             }
-            setArticles(articleResult.articles);
+            setArticles(result.articles);
         } catch (err) {
             const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred.';
             setError(errorMessage);
             toast({
                 variant: 'destructive',
                 title: 'Operation Failed',
-                description: errorMessage,
+                description: 'Could not fetch or rank articles. See details below.',
             });
         } finally {
             setIsLoading(false);
         }
     };
 
-    const handleFetchBody = async (pmid: string) => {
-        setArticles(prev => prev.map(a => a.pmid === pmid ? { ...a, isBodyLoading: true } : a));
-        
-        const article = articles.find(a => a.pmid === pmid);
-        if (!article || !article.fullTextUrl) return;
+    const handleFetchFullText = async (pmid: string) => {
+        const targetArticle = articles.find(a => a.pmid === pmid);
+        if (!targetArticle || !targetArticle.fullTextUrl || targetArticle.fullText || targetArticle.isFetchingText) return;
+
+        setArticles(prev => prev.map(a => a.pmid === pmid ? { ...a, isFetchingText: true, textError: undefined } : a));
 
         try {
-            const body = await getFullArticleText(article.fullTextUrl);
-            setArticles(prev => prev.map(a => a.pmid === pmid ? { ...a, body, isBodyLoading: false } : a));
-        } catch (error) {
-            console.error(`Failed to fetch content for ${article.fullTextUrl}`, error);
-            const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
-            setArticles(prev => prev.map(a => a.pmid === pmid ? { ...a, body: `Could not load article content: ${errorMessage}`, isBodyLoading: false } : a));
-        }
-    };
-
-    const handleSummarize = async (pmid: string) => {
-        setArticles(prev => prev.map(a => a.pmid === pmid ? { ...a, isSummarizing: true } : a));
-        
-        const article = articles.find(a => a.pmid === pmid);
-        if (!article || !article.body) return;
-
-        try {
-            const summary = await summarizeFullArticle(article.body);
-            setArticles(prev => prev.map(a => a.pmid === pmid ? { ...a, summary, isSummarizing: false } : a));
-        } catch (error) {
-            console.error(`Failed to summarize article ${pmid}`, error);
-            const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
-            setArticles(prev => prev.map(a => a.pmid === pmid ? { ...a, summary: `Could not generate summary: ${errorMessage}`, isSummarizing: false } : a));
+            const text = await getArticleContent(targetArticle.fullTextUrl);
+            if(text.startsWith("Error:") || text.startsWith("Could not extract")) throw new Error(text);
+            setArticles(prev => prev.map(a => a.pmid === pmid ? { ...a, isFetchingText: false, fullText: text } : a));
+        } catch (err) {
+            const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred.';
+            setArticles(prev => prev.map(a => a.pmid === pmid ? { ...a, isFetchingText: false, textError: errorMessage } : a));
+             toast({
+                variant: 'destructive',
+                title: 'Failed to Fetch Text',
+                description: errorMessage,
+            });
         }
     };
 
@@ -84,13 +79,13 @@ export default function FitnessPage() {
                             Fitness & Health Research Digest
                         </CardTitle>
                         <CardDescription>
-                            Fetch the latest research articles on exercise science from PubMed. Articles are from the last 24 hours.
+                            Fetches and ranks the latest exercise science articles from PubMed for elite athletes. Articles are from the last 7 days.
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
                         <Button onClick={handleFetch} disabled={isLoading}>
-                            {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <HeartPulse className="mr-2 h-4 w-4" />}
-                            {isLoading ? 'Fetching Articles...' : 'Fetch Latest Articles'}
+                            {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trophy className="mr-2 h-4 w-4" />}
+                            {isLoading ? 'Fetching & Ranking...' : 'Get Top 10 Articles'}
                         </Button>
                     </CardContent>
                 </Card>
@@ -98,112 +93,80 @@ export default function FitnessPage() {
                 {isLoading && (
                     <div className="flex justify-center items-center gap-2 text-muted-foreground">
                         <Loader2 className="h-8 w-8 animate-spin" />
-                        <span className="text-lg">Processing latest fitness research...</span>
+                        <span className="text-lg">Fetching and ranking latest research...</span>
                     </div>
                 )}
 
                 {error && !isLoading && (
                      <Card className="border-destructive">
                         <CardHeader>
-                          <CardTitle className='text-destructive flex items-center gap-2'><ServerCrash/> Data Unavailable</CardTitle>
+                          <CardTitle className='text-destructive flex items-center gap-2'><ServerCrash/> Operation Failed</CardTitle>
                         </CardHeader>
                         <CardContent>
-                          <p className="text-destructive/90">{error}</p>
-                          <p className="text-sm text-muted-foreground mt-2">Could not retrieve information from the PubMed API. This could be a temporary issue. Please try again later.</p>
+                          <p className="text-destructive/90 font-semibold">Error Details:</p>
+                          <pre className="mt-2 p-4 bg-muted/50 rounded-md text-xs overflow-auto max-h-96 border whitespace-pre-wrap font-mono">
+                            <code>{error}</code>
+                          </pre>
                         </CardContent>
                       </Card>
                 )}
 
                 {!isLoading && articles.length > 0 && (
-                    <div className="grid gap-4 md:grid-cols-2">
-                        {articles.map(article => (
+                    <div className="space-y-4">
+                        <h2 className="text-2xl font-bold tracking-tight">Top 10 Most Relevant Articles</h2>
+                        {articles.map((article, index) => (
                             <Card key={article.pmid} className="flex flex-col">
                                 <CardHeader>
-                                    <CardTitle className="text-lg font-bold">{article.title}</CardTitle>
-                                    <CardDescription>
-                                        <span className="flex items-center gap-4 text-xs flex-wrap pt-2">
-                                            <span className="flex items-center gap-1.5"><Book /> {article.journal}</span>
-                                            <span className="flex items-center gap-1.5"><Calendar /> {article.publication_date}</span>
-                                        </span>
-                                    </CardDescription>
+                                    <div className="flex items-start gap-4">
+                                        <div className="flex-shrink-0 bg-primary text-primary-foreground h-8 w-8 rounded-full flex items-center justify-center font-bold text-lg">{index + 1}</div>
+                                        <div className="flex-grow">
+                                            <CardTitle className="text-lg font-bold">{article.title}</CardTitle>
+                                        </div>
+                                    </div>
                                 </CardHeader>
-                                <CardContent className="space-y-3 text-sm flex-grow">
+                                <CardContent className="space-y-3 text-sm flex-grow pl-16">
                                     <div className="flex items-start gap-2">
                                         <User className="h-4 w-4 text-muted-foreground mt-0.5" />
                                         <div>
-                                            <span className="font-semibold">Authors:</span> {article.authors.join(', ')}
+                                            <span className="font-semibold">Authors:</span> {article.authors.slice(0, 3).join(', ')}{article.authors.length > 3 ? ' et al.' : ''}
                                         </div>
                                     </div>
                                     
-                                    <Accordion type="single" collapsible className="w-full">
-                                        <AccordionItem value="abstract">
-                                            <AccordionTrigger>View Abstract</AccordionTrigger>
-                                            <AccordionContent className="whitespace-pre-wrap font-body text-xs leading-relaxed">
-                                                {article.abstract}
+                                     <Accordion type="single" collapsible>
+                                        <AccordionItem value="item-1">
+                                            <AccordionTrigger onClick={() => handleFetchFullText(article.pmid)} disabled={!article.fullTextUrl}>
+                                                <span className="flex items-center gap-2">
+                                                    <BookOpen className="h-4 w-4" />
+                                                    Read Full Article
+                                                </span>
+                                            </AccordionTrigger>
+                                            <AccordionContent>
+                                                {article.isFetchingText ? (
+                                                <div className="pt-3 border-t flex items-center gap-2 text-muted-foreground">
+                                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                                    <span>Fetching article content...</span>
+                                                </div>
+                                                ) : article.textError ? (
+                                                    <p className="pt-3 border-t text-sm text-destructive">{article.textError}</p>
+                                                ) : article.fullText ? (
+                                                <div className="pt-3 border-t">
+                                                    <p className="text-sm text-muted-foreground whitespace-pre-wrap max-h-60 overflow-y-auto">{article.fullText}</p>
+                                                </div>
+                                                ) : null}
                                             </AccordionContent>
                                         </AccordionItem>
-                                        {article.fullTextUrl && (
-                                            <AccordionItem value="full-text">
-                                                <AccordionTrigger onClick={() => !article.body && handleFetchBody(article.pmid)}>
-                                                    <span className="flex items-center gap-2">
-                                                        <BookOpen className="h-4 w-4" />
-                                                        Read Full Article
-                                                    </span>
-                                                </AccordionTrigger>
-                                                <AccordionContent>
-                                                    {article.isBodyLoading ? (
-                                                        <div className="pt-3 border-t flex items-center gap-2 text-muted-foreground">
-                                                            <Loader2 className="h-4 w-4 animate-spin" />
-                                                            <span>Fetching article content...</span>
-                                                        </div>
-                                                    ) : (
-                                                        <div className="pt-3 border-t space-y-4">
-                                                            <p className="text-sm text-muted-foreground whitespace-pre-wrap">{article.body}</p>
-                                                            {article.body && !article.body.startsWith('Could not load') && (
-                                                                <div>
-                                                                    <Button onClick={() => handleSummarize(article.pmid)} disabled={article.isSummarizing}>
-                                                                        {article.isSummarizing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
-                                                                        {article.isSummarizing ? 'Summarizing...' : 'Summarize Article'}
-                                                                    </Button>
-
-                                                                    {article.isSummarizing && !article.summary &&(
-                                                                        <div className="mt-4 flex items-center gap-2 text-muted-foreground">
-                                                                            <Loader2 className="h-4 w-4 animate-spin" />
-                                                                            <span>Generating summary...</span>
-                                                                        </div>
-                                                                    )}
-
-                                                                    {article.summary && (
-                                                                        <div className="mt-4 p-4 bg-primary/10 rounded-md">
-                                                                            <h4 className="font-semibold mb-2">AI Summary</h4>
-                                                                            <p className="text-sm whitespace-pre-wrap">{article.summary}</p>
-                                                                        </div>
-                                                                    )}
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                    )}
-                                                </AccordionContent>
-                                            </AccordionItem>
-                                        )}
                                     </Accordion>
 
                                 </CardContent>
-                                <CardFooter className="flex-col sm:flex-row gap-2 items-center">
+                                <CardFooter className="flex-col sm:flex-row gap-2 items-center pl-16">
                                     {article.fullTextUrl && (
-                                        <Button asChild variant="secondary" size="sm" className="w-full">
+                                        <Button asChild variant="outline" size="sm" className="w-full">
                                             <a href={article.fullTextUrl} target="_blank" rel="noopener noreferrer">
-                                                View on Publisher Site
-                                                <FileText className="ml-2 h-4 w-4" />
+                                                Read on Source
+                                                <ExternalLink className="ml-2 h-4 w-4" />
                                             </a>
                                         </Button>
                                     )}
-                                    <Button asChild variant="outline" size="sm" className="w-full">
-                                        <a href={`https://pubmed.ncbi.nlm.nih.gov/${article.pmid}/`} target="_blank" rel="noopener noreferrer">
-                                            View on PubMed
-                                            <ExternalLink className="ml-2 h-4 w-4" />
-                                        </a>
-                                    </Button>
                                 </CardFooter>
                             </Card>
                         ))}
@@ -211,7 +174,7 @@ export default function FitnessPage() {
                 )}
                  {!isLoading && !error && articles.length === 0 && (
                     <div className="text-center py-10 border-2 border-dashed rounded-lg">
-                        <p className="text-muted-foreground">Click the button above to fetch the latest articles.</p>
+                        <p className="text-muted-foreground">Click the button above to fetch and rank the latest articles.</p>
                     </div>
                 )}
             </main>

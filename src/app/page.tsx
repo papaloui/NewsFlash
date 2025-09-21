@@ -6,16 +6,10 @@ import { Header } from '@/components/app/header';
 import { NewsBoard } from '@/components/app/news-board';
 import { NewsBoardSkeleton } from '@/components/app/skeletons';
 import { useToast } from "@/hooks/use-toast";
-import { getArticleContent } from './actions';
+import { getArticleContent, summarizeArticlesInBatch } from './actions';
 import { FeedManager } from '@/components/app/feed-manager';
 import type { FeedCollection, Article } from '@/lib/types';
-import { summarizeHeadlinesDigest } from '@/ai/flows/summarize-headlines-digest';
-import { DailyDigest } from '@/components/app/daily-digest';
 
-
-export type ArticleWithStatus = Article & { 
-    body?: string;
-};
 
 const initialCollections: FeedCollection[] = [
     {
@@ -34,19 +28,16 @@ const initialCollections: FeedCollection[] = [
     },
 ];
   
-
 export default function Home() {
-  const [articles, setArticles] = useState<ArticleWithStatus[]>([]);
+  const [articles, setArticles] = useState<Article[]>([]);
   const [isFetching, setIsFetching] = useState(false);
-  const [isSummarizing, setIsSummarizing] = useState(false);
-  const [digest, setDigest] = useState<string | null>(null);
+  const [fetchingStatus, setFetchingStatus] = useState('');
   const { toast } = useToast();
   
   const [collections, setCollections] = useState<FeedCollection[]>([]);
   const [selectedCollectionId, setSelectedCollectionId] = useState<string | null>(null);
 
   useEffect(() => {
-    // Load collections from localStorage on mount
     try {
         const storedCollections = localStorage.getItem('newsflash-collections');
         if (storedCollections) {
@@ -56,7 +47,6 @@ export default function Home() {
                 setSelectedCollectionId(parsed[0].id);
             }
         } else {
-            // Load initial default collections if nothing is stored
             setCollections(initialCollections);
             setSelectedCollectionId(initialCollections[0].id);
         }
@@ -70,7 +60,6 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    // Save collections to localStorage whenever they change
     if(collections.length > 0) {
         try {
             localStorage.setItem('newsflash-collections', JSON.stringify(collections));
@@ -79,29 +68,6 @@ export default function Home() {
         }
     }
   }, [collections]);
-
-  const handleSummarizeDigest = async (articlesToSummarize: ArticleWithStatus[]) => {
-      const articlesForDigest = articlesToSummarize
-        .filter(a => a.body) // Only include articles that have a body
-        .map(a => ({ headline: a.headline, body: a.body! }));
-
-      if (articlesForDigest.length === 0) return;
-
-      setIsSummarizing(true);
-      setDigest(null);
-      
-      try {
-          const result = await summarizeHeadlinesDigest(articlesForDigest);
-          setDigest(result.digest);
-      } catch (error) {
-          console.error(error);
-          const errorMessage = error instanceof Error ? error.message : "An unknown error occurred.";
-          toast({ variant: 'destructive', title: 'Digest Failed', description: errorMessage });
-      } finally {
-          setIsSummarizing(false);
-      }
-  };
-
 
   const handleFetch = async () => {
     if (!selectedCollectionId) return;
@@ -118,7 +84,7 @@ export default function Home() {
 
     setIsFetching(true);
     setArticles([]);
-    setDigest(null);
+    setFetchingStatus('Fetching headlines...');
 
     try {
         const feedUrls = selectedCollection.feeds;
@@ -134,26 +100,38 @@ export default function Home() {
         }
 
         const fetchedArticles: Article[] = await res.json();
+        const articlesToProcess = fetchedArticles.slice(0, 10);
+        setArticles(articlesToProcess);
         
-        const articlesToDisplay = fetchedArticles.slice(0, 15);
-        setArticles(articlesToDisplay);
+        setFetchingStatus('Fetching full article content...');
+        const articlesWithContentPromises = articlesToProcess.map(async (article) => {
+            const body = await getArticleContent(article.link);
+            return { ...article, body };
+        });
+
+        const articlesWithContent = await Promise.all(articlesWithContentPromises);
         
-        // Fetch bodies for the articles in parallel
-        const articlesWithBodies = await Promise.all(articlesToDisplay.map(async (article) => {
-            try {
-              const body = await getArticleContent(article.link);
-              return { ...article, body };
-            } catch (error) {
-               console.error(`Failed to fetch content for ${article.link}`, error);
-               return { ...article, body: "Could not load article content." };
-            }
-        }));
+        setFetchingStatus('Summarizing articles with AI...');
+        const articlesForAISummary = articlesWithContent
+            .filter(a => a.body && !a.body.startsWith("Error:") && !a.body.startsWith("Could not extract"))
+            .map(a => ({
+                link: a.link,
+                source: a.source,
+                headline: a.headline,
+                publicationDate: a.publicationDate,
+                body: a.body
+            }));
 
-        setArticles(articlesWithBodies);
-
-        // Start digest summarization now that all bodies are fetched
-        if(articlesWithBodies.length > 0) {
-            // handleSummarizeDigest(articlesWithBodies);
+        if (articlesForAISummary.length > 0) {
+            const aiSummaries = await summarizeArticlesInBatch(articlesForAISummary);
+            
+            setArticles(prevArticles => {
+                const summaryMap = new Map(aiSummaries.map(s => [s.link, s.summary]));
+                return prevArticles.map(article => ({
+                    ...article,
+                    summary: summaryMap.get(article.link) || article.summary, // Use AI summary if available, otherwise fallback to original
+                }));
+            });
         }
 
     } catch (error) {
@@ -166,9 +144,9 @@ export default function Home() {
         });
     } finally {
         setIsFetching(false);
+        setFetchingStatus('');
     }
   };
-
 
   return (
     <div className="min-h-screen bg-background">
@@ -180,16 +158,19 @@ export default function Home() {
             selectedCollectionId={selectedCollectionId}
             setSelectedCollectionId={setSelectedCollectionId}
             onFetch={handleFetch}
-            isFetching={isFetching || isSummarizing}
+            isFetching={isFetching}
+            fetchingStatus={fetchingStatus}
         />
 
         <div className="space-y-6">
-          {(isFetching || isSummarizing) && !digest && <NewsBoardSkeleton />}
-
-          {digest && <DailyDigest digest={digest} isLoading={isSummarizing} />}
+          {isFetching && <NewsBoardSkeleton status={fetchingStatus} />}
           
           <div className="transition-opacity duration-300">
-              {!isFetching && <NewsBoard articles={articles} />}
+              {!isFetching && (
+                <NewsBoard 
+                  articles={articles} 
+                />
+              )}
           </div>
         </div>
       </main>

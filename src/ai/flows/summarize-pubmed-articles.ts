@@ -1,4 +1,3 @@
-
 'use server';
 /**
  * @fileOverview Summarizes a batch of PubMed articles in a single AI request.
@@ -12,7 +11,6 @@ import { z } from 'genkit';
 const PubMedArticleForSummarySchema = z.object({
     pmid: z.string().describe('The unique PubMed ID of the article.'),
     title: z.string().describe('The title of the article.'),
-    abstract: z.string().describe('The full abstract text of the article.'),
 });
 
 const SummarizePubMedArticlesInputSchema = z.array(PubMedArticleForSummarySchema);

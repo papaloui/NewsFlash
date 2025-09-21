@@ -88,10 +88,10 @@ export async function askHansardAgent(transcript: string, summary: string, query
 }
 
 
-export async function getSittingDates(): Promise<string[]> {
+export async function getSittingDates(): Promise<{ dates: string[], error?: string }> {
     try {
         const url = 'https://www.ourcommons.ca/en/sitting-calendar';
-        const response = await fetch(url);
+        const response = await fetch(url, { next: { revalidate: 86400 } }); // Revalidate once a day
         if (!response.ok) {
             throw new Error(`Failed to fetch calendar: ${response.statusText}`);
         }
@@ -99,91 +99,71 @@ export async function getSittingDates(): Promise<string[]> {
         const dom = new JSDOM(html);
         const document = dom.window.document;
 
-        const sittingDays = document.querySelectorAll('.chamber-meeting');
+        const sittingDayElements = document.querySelectorAll('td.chamber-meeting');
         const dates: string[] = [];
         const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
 
-        sittingDays.forEach(day => {
-            day.classList.forEach(className => {
+        sittingDayElements.forEach(day => {
+            for (const className of day.classList) {
                 if (dateRegex.test(className)) {
                     dates.push(className);
+                    break; // Found the date class, move to the next element
                 }
-            });
+            }
         });
+
+        if (dates.length === 0) {
+            throw new Error('No sitting dates found on the calendar page. The selector "td.chamber-meeting" may be incorrect or the page structure has changed.');
+        }
         
-        return dates;
+        return { dates };
 
     } catch (error) {
         console.error('Error fetching sitting dates:', error);
-        if (error instanceof Error) {
-            throw new Error(error.message);
-        }
-        throw new Error('An unknown error occurred while fetching sitting dates.');
+        const message = error instanceof Error ? error.message : 'An unknown error occurred while fetching sitting dates.';
+        return { dates: [], error: message };
     }
 }
 
 
-export async function getHansardLinkForDate(date: string): Promise<string | null> {
+export async function getHansardUrlForDate(
+    selectedDate: string,
+    allSittingDates: string[]
+): Promise<{ url: string; log: string[] } | { url: null; log: string[]; error: string }> {
+    const log: string[] = [];
     try {
-        const url = `https://www.ourcommons.ca/en/parliamentary-business/${date}`;
-        const response = await fetch(url);
-        if (!response.ok) {
-            throw new Error(`Failed to fetch parliamentary business page for ${date}: ${response.statusText}`);
-        }
-        const html = await response.text();
-        const dom = new JSDOM(html);
-        const document = dom.window.document;
+        log.push(`Input: selectedDate = ${selectedDate}`);
+        log.push(`Input: allSittingDates = [${allSittingDates.length} dates]`);
 
-        const links = document.querySelectorAll('a');
-        let hansardLink: string | null = null;
-        
-        links.forEach(link => {
-            if (link.textContent?.trim() === 'Debates (Hansard)') {
-                hansardLink = link.href;
-            }
-        });
-        
-        if (hansardLink) {
-             // The link is relative, so make it absolute
-            return new URL(hansardLink, 'https://www.ourcommons.ca').toString();
+        // Ensure dates are sorted chronologically
+        const sortedDates = [...allSittingDates].sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
+        log.push(`Step: Sorted all sitting dates chronologically.`);
+
+        const sittingIndex = sortedDates.findIndex(d => d === selectedDate);
+        log.push(`Step: Found index of ${selectedDate} in sorted dates array. Index = ${sittingIndex}`);
+
+        if (sittingIndex === -1) {
+            throw new Error(`Selected date ${selectedDate} is not a valid sitting day according to the fetched calendar.`);
         }
 
-        return null;
+        // The sitting number is the index + 1
+        const sittingNumber = sittingIndex + 1;
+        log.push(`Step: Calculated sitting number. Number = ${sittingNumber}`);
+
+        // Format the sitting number to be three digits with leading zeros (e.g., 23 -> "023")
+        const formattedSittingNumber = sittingNumber.toString().padStart(3, '0');
+        log.push(`Step: Formatted sitting number to three digits. Formatted = "${formattedSittingNumber}"`);
+
+        // Construct the URL
+        const url = `https://www.ourcommons.ca/Content/House/451/Debates/${formattedSittingNumber}/HAN${formattedSittingNumber}-E.XML`;
+        log.push(`Output: Constructed URL = ${url}`);
+
+        return { url, log };
 
     } catch (error) {
-        console.error(`Error fetching Hansard link for date ${date}:`, error);
-        if (error instanceof Error) {
-            throw new Error(error.message);
-        }
-        throw new Error('An unknown error occurred while fetching the Hansard link.');
-    }
-}
-
-
-export async function getHansardXmlLink(hansardUrl: string): Promise<string | null> {
-    try {
-        const response = await fetch(hansardUrl);
-        if (!response.ok) {
-            throw new Error(`Failed to fetch Hansard page (${hansardUrl}): ${response.statusText}`);
-        }
-        const html = await response.text();
-        const dom = new JSDOM(html);
-        const document = dom.window.document;
-
-        const links = Array.from(document.querySelectorAll('a'));
-        const xmlLink = links.find(link => link.textContent?.trim().includes('XML'));
-        
-        if (xmlLink && xmlLink.href) {
-            // The href should be absolute on this page.
-            return xmlLink.href;
-        }
-
-        return null;
-    } catch (error) {
-        console.error(`Error fetching or parsing Hansard page for XML link (${hansardUrl}):`, error);
-        if (error instanceof Error) {
-            throw new Error(error.message);
-        }
-        throw new Error('An unknown error occurred while finding the XML link.');
+        console.error(`Error constructing Hansard URL for date ${selectedDate}:`, error);
+        const message = error instanceof Error ? error.message : 'An unknown error occurred.';
+        log.push(`ERROR: ${message}`);
+        return { url: null, log, error: message };
     }
 }

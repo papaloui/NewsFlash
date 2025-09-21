@@ -1,5 +1,7 @@
-import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
+
+import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Loader2 } from "lucide-react";
 
 function ListItemSkeleton() {
   return (
@@ -22,10 +24,15 @@ function ListItemSkeleton() {
   )
 }
 
-
-export function NewsBoardSkeleton() {
+export function NewsBoardSkeleton({ status }: { status?: string }) {
     return (
         <div className="space-y-4">
+            {status && (
+                <div className="flex items-center justify-center gap-2 text-muted-foreground">
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                    <span>{status}</span>
+                </div>
+            )}
             <ListItemSkeleton />
             <ListItemSkeleton />
             <ListItemSkeleton />

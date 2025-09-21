@@ -15,9 +15,5 @@ import '@/ai/flows/news-agent.ts';
 import '@/ai/flows/summarize-gazette.ts';
 import '@/ai/flows/summarize-ontario-debate.ts';
 import '@/ai/flows/summarize-ontario-gazette.ts';
-import '@/ai/flows/summarize-full-article.ts';
-
-
-
-
-
+import '@/ai/flows/rank-pubmed-articles.ts';
+import '@/ai/flows/summarize-pubmed-articles.ts';

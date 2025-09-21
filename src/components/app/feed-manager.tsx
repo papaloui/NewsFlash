@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { FeedCollection } from '@/lib/types';
-import { PlusCircle, Trash2, Edit, X, Rss } from 'lucide-react';
+import { PlusCircle, Trash2, Edit, X, Rss, Loader2 } from 'lucide-react';
 import { Separator } from '../ui/separator';
 
 interface FeedManagerProps {
@@ -18,9 +18,10 @@ interface FeedManagerProps {
   setSelectedCollectionId: React.Dispatch<React.SetStateAction<string | null>>;
   onFetch: () => void;
   isFetching: boolean;
+  fetchingStatus?: string;
 }
 
-export function FeedManager({ collections, setCollections, selectedCollectionId, setSelectedCollectionId, onFetch, isFetching }: FeedManagerProps) {
+export function FeedManager({ collections, setCollections, selectedCollectionId, setSelectedCollectionId, onFetch, isFetching, fetchingStatus }: FeedManagerProps) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingCollection, setEditingCollection] = useState<FeedCollection | null>(null);
   const [collectionName, setCollectionName] = useState('');
@@ -77,7 +78,6 @@ export function FeedManager({ collections, setCollections, selectedCollectionId,
         setFeeds(feeds.filter((_, i) => i !== index));
     }
   };
-
 
   return (
     <div className="bg-card p-4 rounded-lg shadow-sm border">
@@ -154,9 +154,9 @@ export function FeedManager({ collections, setCollections, selectedCollectionId,
             </DialogContent>
           </Dialog>
 
-          <Button onClick={onFetch} disabled={isFetching || !selectedCollectionId}>
-            <Rss className="mr-2 h-4 w-4" />
-            {isFetching ? 'Fetching...' : 'Fetch Top Stories'}
+          <Button onClick={onFetch} disabled={isFetching || !selectedCollectionId} className="w-48">
+            {isFetching ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Rss className="mr-2 h-4 w-4" />}
+            {isFetching ? (fetchingStatus || 'Fetching...') : 'Fetch Top Stories'}
           </Button>
         </div>
       </div>

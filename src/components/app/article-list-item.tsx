@@ -1,17 +1,11 @@
 
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Calendar, Globe, ExternalLink, Loader2, BookOpen } from "lucide-react";
+import { Calendar, Globe, ExternalLink } from "lucide-react";
 import type { Article } from "@/lib/types";
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "../ui/accordion";
-
-type ArticleWithStatus = Article & { 
-  body?: string;
-};
-
 
 interface ArticleListItemProps {
-  article: ArticleWithStatus;
+  article: Article;
 }
 
 export function ArticleListItem({ article }: ArticleListItemProps) {
@@ -36,31 +30,6 @@ export function ArticleListItem({ article }: ArticleListItemProps) {
         </div>
         
         <p className="text-sm text-muted-foreground pt-3 border-t">{article.summary}</p>
-
-
-        <Accordion type="single" collapsible>
-          <AccordionItem value="item-1">
-            <AccordionTrigger>
-                <span className="flex items-center gap-2">
-                    <BookOpen className="h-4 w-4" />
-                    Read Full Article
-                </span>
-            </AccordionTrigger>
-            <AccordionContent>
-                {article.body ? (
-                  <div className="pt-3 border-t">
-                    <p className="text-sm text-muted-foreground whitespace-pre-wrap">{article.body}</p>
-                  </div>
-                ) : (
-                  <div className="pt-3 border-t flex items-center gap-2 text-muted-foreground">
-                     <Loader2 className="h-4 w-4 animate-spin" />
-                     <span>Fetching article content...</span>
-                  </div>
-                )}
-            </AccordionContent>
-          </AccordionItem>
-        </Accordion>
-
 
         <div className="flex items-center justify-end gap-2 pt-2">
            <Button asChild variant="outline" size="sm">

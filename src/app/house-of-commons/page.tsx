@@ -5,14 +5,16 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { Header } from '@/components/app/header';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
-import { Landmark, Loader2, Search, BookOpen, Clock, Languages, User, FileText as FileTextIcon, ExternalLink, ScrollText, Bug, Hourglass } from 'lucide-react';
+import { Landmark, Loader2, Search, BookOpen, Clock, Languages, User, FileText as FileTextIcon, ExternalLink, ScrollText, Bug, Hourglass, CalendarIcon, ServerCrash, ListChecks } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { startTranscriptSummary, checkSummaryJob, getSittingDates, getHansardLinkForDate, getHansardXmlLink } from './actions';
+import { startTranscriptSummary, checkSummaryJob, getSittingDates, getHansardUrlForDate } from './actions';
 import { HansardChat } from '@/components/app/hansard-chat';
-
+import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { format } from 'date-fns';
 
 interface InterventionContent {
   type: 'text' | 'timestamp' | 'language';
@@ -43,18 +45,8 @@ interface FullSummary {
   debugInfo?: DebugInfo;
 }
 
-interface AutomationStatus {
-    step: 'idle' | 'checking_calendar' | 'found_sitting' | 'finding_hansard_url' | 'found_hansard_url' | 'finding_xml_url' | 'found_xml_url' | 'loading_transcript' | 'summarizing' | 'complete' | 'no_sitting' | 'error';
-    message: string;
-    error?: string;
-}
-
-// Helper to introduce a delay
-const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
-
-
 export default function HouseOfCommonsPage() {
-  const [url, setUrl] = useState('https://www.ourcommons.ca/Content/House/451/Debates/021/HAN021-E.XML');
+  const [url, setUrl] = useState('');
   const [data, setData] = useState<HansardData | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -63,11 +55,39 @@ export default function HouseOfCommonsPage() {
   const [isSummarizing, setIsSummarizing] = useState(false);
   const [summaryError, setSummaryError] = useState<string | null>(null);
   const [jobId, setJobId] = useState<string | null>(null);
-  const [automationStatus, setAutomationStatus] = useState<AutomationStatus>({ step: 'idle', message: 'Automation paused. Load manually.' });
+  const [processLog, setProcessLog] = useState<string[]>(['Process log will appear here.']);
+  const [currentError, setCurrentError] = useState<string | null>(null);
+  
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>();
+  const [allSittingDates, setAllSittingDates] = useState<string[]>([]);
+  const [isCalendarLoading, setIsCalendarLoading] = useState(true);
 
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const hasTriggeredAutoSummary = useRef(false);
 
+  // Fetch all sitting dates on initial load to populate the calendar
+  useEffect(() => {
+    async function fetchAllSittingDates() {
+        setIsCalendarLoading(true);
+        setProcessLog(log => [...log, "Fetching sitting calendar..."]);
+        try {
+            const { dates, error } = await getSittingDates();
+            if (error) {
+                throw new Error(error);
+            }
+            setAllSittingDates(dates);
+            setProcessLog(log => [...log, `Successfully fetched ${dates.length} sitting dates.`]);
+        } catch (error) {
+            const message = error instanceof Error ? error.message : 'Could not load sitting dates for the calendar.';
+            setProcessLog(log => [...log, `ERROR: ${message}`]);
+            setCurrentError(message);
+            toast({ variant: 'destructive', title: 'Error', description: message });
+        } finally {
+            setIsCalendarLoading(false);
+        }
+    }
+    fetchAllSittingDates();
+  }, [toast]);
+  
   const getFullTranscriptText = useCallback(() => {
     if (!data) return '';
     return data.interventions.map(i => {
@@ -89,22 +109,26 @@ export default function HouseOfCommonsPage() {
           setFullSummary(statusResult.result!);
           setIsSummarizing(false);
           setJobId(null);
-          setAutomationStatus({ step: 'complete', message: 'Debate summary is complete.' });
+          setProcessLog(log => [...log, 'SUCCESS: Debate summary is complete.']);
           if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
         } else if (statusResult.status === 'error') {
-          setSummaryError(`Error generating summary: ${statusResult.error}`);
+          const message = `Error generating summary: ${statusResult.error}`;
+          setSummaryError(message);
           setIsSummarizing(false);
           setJobId(null);
-          setAutomationStatus({ step: 'error', message: 'Failed during summary generation.', error: statusResult.error });
+          setProcessLog(log => [...log, `ERROR: ${message}`]);
+          setCurrentError(message);
           if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
+        } else {
+            setProcessLog(log => [...log, 'Polling... summary still pending.']);
         }
-        // If 'pending', do nothing and wait for the next interval
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred while polling.';
         setSummaryError(errorMessage);
         setIsSummarizing(false);
         setJobId(null);
-        setAutomationStatus({ step: 'error', message: 'Polling for summary failed.', error: errorMessage });
+        setProcessLog(log => [...log, `ERROR: ${errorMessage}`]);
+        setCurrentError(errorMessage);
         if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
       }
     }, 5000); // Poll every 5 seconds
@@ -118,18 +142,21 @@ export default function HouseOfCommonsPage() {
     setFullSummary(null);
     setSummaryError(null);
     setJobId(null);
-    setAutomationStatus(prev => ({ ...prev, step: 'summarizing', message: 'Generating full debate summary. This may take a few minutes...' }));
+    setCurrentError(null);
+    setProcessLog(log => [...log, 'Starting full debate summary. This may take a few minutes...']);
     if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
 
     try {
       const { jobId: newJobId } = await startTranscriptSummary(transcriptText);
       setJobId(newJobId);
+      setProcessLog(log => [...log, `Summary job started with ID: ${newJobId}. Polling for completion...`]);
       pollJobStatus(newJobId);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred.';
       setSummaryError(`Error starting summary job: ${errorMessage}`);
       setIsSummarizing(false);
-      setAutomationStatus({ step: 'error', message: 'Failed to start summary job.', error: errorMessage });
+      setProcessLog(log => [...log, `ERROR: Failed to start summary job. ${errorMessage}`]);
+      setCurrentError(errorMessage);
     }
   }, [getFullTranscriptText, pollJobStatus]);
 
@@ -137,8 +164,8 @@ export default function HouseOfCommonsPage() {
     setIsLoading(true);
     setData(null);
     setFullSummary(null);
-    hasTriggeredAutoSummary.current = false; // Reset auto-summary trigger
-    setAutomationStatus(prev => ({ ...prev, step: 'loading_transcript', message: `Loading and parsing transcript from ${loadUrl}` }));
+    setCurrentError(null);
+    setProcessLog(log => [...log, `Loading and parsing transcript from ${loadUrl}`]);
 
     try {
       const res = await fetch(`/api/hansard?url=${encodeURIComponent(loadUrl)}`);
@@ -151,81 +178,58 @@ export default function HouseOfCommonsPage() {
         throw new Error("Parsing completed, but no interventions were found in the XML.");
       }
       setData(jsonData);
-      // Summarization will now be triggered by the useEffect hook watching `data`
+      setProcessLog(log => [...log, 'SUCCESS: Transcript parsed.']);
+      // Automatically start the summary after loading the data.
+      handleFullSummary(); 
     } catch (error) {
-      console.error('Failed to get Hansard data:', error);
       const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred.';
-      toast({
-        variant: 'destructive',
-        title: 'Error',
-        description: `Could not load data: ${errorMessage}`,
-      });
-      setAutomationStatus({ step: 'error', message: 'Failed to load transcript.', error: errorMessage });
+      setProcessLog(log => [...log, `ERROR: Could not load data. ${errorMessage}`]);
+      setCurrentError(errorMessage);
+      toast({ variant: 'destructive', title: 'Error', description: `Could not load data: ${errorMessage}` });
     } finally {
       setIsLoading(false);
     }
-  }, [toast]);
+  }, [toast, handleFullSummary]);
   
-  // This effect hook will trigger the summary *after* the data state has been updated.
-  // Temporarily disabled to debug 429 errors
-  /*
-  useEffect(() => {
-    if (data && !isSummarizing && !fullSummary && !hasTriggeredAutoSummary.current) {
-        hasTriggeredAutoSummary.current = true; // Prevent re-triggering on hot-reloads
-        handleFullSummary();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data]);
-  */
-  
-  const runAutomatedDebateFetch = useCallback(async () => {
-    const dateToCheck = '2025-09-17';
+  const handleDateSelect = async (date: string) => {
+    setIsLoading(true);
+    setData(null);
+    setFullSummary(null);
+    setSummaryError(null);
+    setCurrentError(null);
+    if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
+
+    setProcessLog([`--- New Process Started at ${new Date().toLocaleTimeString()} ---`, `Selected date: ${date}`]);
+    
     try {
-        setAutomationStatus({ step: 'checking_calendar', message: 'Checking parliamentary sitting calendar...' });
-        const dates = await getSittingDates();
-        const wasSitting = dates.includes(dateToCheck);
-
-        if (wasSitting) {
-            setAutomationStatus({ step: 'found_sitting', message: `House was sitting on ${dateToCheck}.` });
-            await sleep(1000);
-
-            setAutomationStatus({ step: 'finding_hansard_url', message: 'Finding Hansard debate link...' });
-            const hansardUrl = await getHansardLinkForDate(dateToCheck);
-
-            if (hansardUrl) {
-                setAutomationStatus({ step: 'found_hansard_url', message: `Found Hansard link.` });
-                await sleep(1000);
-
-                setAutomationStatus({ step: 'finding_xml_url', message: 'Finding XML transcript link...' });
-                const xmlUrl = await getHansardXmlLink(hansardUrl);
-
-                if (xmlUrl) {
-                    setAutomationStatus({ step: 'found_xml_url', message: 'Found XML link. Starting transcript load.' });
-                    setUrl(xmlUrl);
-                    await sleep(1000); // Wait a second before loading
-                    await handleLoad(xmlUrl); // Automatically load
-                } else {
-                    throw new Error('Could not find the XML link on the Hansard page.');
-                }
-            } else {
-                throw new Error('Could not find the Hansard Debates link for the specified date.');
-            }
-        } else {
-            setAutomationStatus({ step: 'no_sitting', message: `House was not sitting on ${dateToCheck}. No further action.` });
+        const result = await getHansardUrlForDate(date, allSittingDates);
+        setProcessLog(log => [...log, ...result.log]);
+        
+        if (result.error || !result.url) {
+            throw new Error(result.error || 'The constructed URL was null.');
         }
+        
+        setUrl(result.url);
+        await handleLoad(result.url);
+
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred.';
-        console.error('Automated debate fetch failed:', error);
-        setAutomationStatus({ step: 'error', message: 'Automated process failed.', error: errorMessage });
+        setProcessLog(log => [...log, `ERROR: ${errorMessage}`]);
+        setCurrentError(errorMessage);
+        toast({ variant: 'destructive', title: 'Error', description: errorMessage });
+    } finally {
+        setIsLoading(false);
     }
-  }, [handleLoad]);
+  };
 
-
-  // Temporarily disabled as per user request
-  // useEffect(() => {
-  //   runAutomatedDebateFetch();
-  //   // eslint-disable-next-line react-hooks/exhaustive-deps
-  // }, []);
+  // Trigger loading when a date is selected
+  useEffect(() => {
+    if (selectedDate && allSittingDates.length > 0) {
+      const dateString = format(selectedDate, 'yyyy-MM-dd');
+      handleDateSelect(dateString);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedDate]);
 
   // Cleanup interval on component unmount
   useEffect(() => {
@@ -297,7 +301,6 @@ export default function HouseOfCommonsPage() {
       return fullText.includes(searchQuery.toLowerCase()) || speakerName.includes(searchQuery.toLowerCase());
   }) || [];
 
-
   return (
     <div className="min-h-screen bg-background">
       <Header />
@@ -310,29 +313,44 @@ export default function HouseOfCommonsPage() {
                   House of Commons Debates
                 </CardTitle>
                 <CardDescription>
-                  Tools for fetching and analyzing parliamentary transcripts and data. The automatic fetch for the previous day's debates is currently paused.
+                  Select a sitting date from the calendar to load and analyze a parliamentary transcript.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                 <Card>
-                    <CardHeader className="pb-2">
-                        <CardTitle className="text-lg flex items-center gap-2"><Hourglass/> Automation Status</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="flex items-center gap-4 mt-4">
-                           {(automationStatus.step === 'idle' || automationStatus.step.includes('finding') || automationStatus.step.includes('checking') || automationStatus.step === 'loading_transcript' || automationStatus.step === 'summarizing') && (
-                             <Loader2 className="h-5 w-5 animate-spin"/>
-                           )}
-                           <p className="text-sm text-muted-foreground">{automationStatus.message}</p>
-                        </div>
-                        {automationStatus.step === 'error' && <p className="mt-2 text-sm text-destructive">{automationStatus.error}</p>}
-                    </CardContent>
-                 </Card>
+                <Popover>
+                    <PopoverTrigger asChild>
+                        <Button
+                            variant={"outline"}
+                            className="w-[280px] justify-start text-left font-normal"
+                            disabled={isCalendarLoading || isLoading || isSummarizing}
+                        >
+                            <CalendarIcon className="mr-2 h-4 w-4" />
+                            {selectedDate ? format(selectedDate, "PPP") : <span>Pick a date</span>}
+                        </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0">
+                        <Calendar
+                            mode="single"
+                            selected={selectedDate}
+                            onSelect={setSelectedDate}
+                            initialFocus
+                            modifiers={{ 
+                                sitting: allSittingDates.map(d => {
+                                    const [year, month, day] = d.split('-').map(Number);
+                                    return new Date(year, month - 1, day);
+                                }) 
+                            }}
+                            modifiersClassNames={{ sitting: 'bg-primary/20' }}
+                            disabled={isCalendarLoading || isLoading || isSummarizing}
+                        />
+                    </PopoverContent>
+                </Popover>
+
                 <div className="flex flex-col sm:flex-row gap-2">
                   <Input
                     value={url}
                     onChange={(e) => setUrl(e.target.value)}
-                    placeholder="Enter Hansard XML URL..."
+                    placeholder="Or enter Hansard XML URL manually..."
                     disabled={isLoading || isSummarizing}
                     className="flex-1"
                   />
@@ -341,12 +359,33 @@ export default function HouseOfCommonsPage() {
                     Load Manually
                   </Button>
                 </div>
-                 <p className="text-xs text-muted-foreground">
-                    Example: <a href={url} target="_blank" rel="noopener noreferrer" className="underline hover:text-primary">{url} <ExternalLink className="inline-block h-3 w-3" /></a>
-                </p>
               </CardContent>
             </Card>
 
+            <Card>
+                <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                        <ListChecks />
+                        Process Log
+                    </CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <pre className="bg-muted p-4 rounded-md text-xs font-mono max-h-60 overflow-auto">
+                        {processLog.join('\n')}
+                    </pre>
+                </CardContent>
+            </Card>
+
+             {currentError && (
+                <Card className="border-destructive">
+                    <CardHeader>
+                        <CardTitle className='text-destructive flex items-center gap-2'><ServerCrash/> Process Failed</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <p className="text-destructive/90 bg-destructive/10 p-4 rounded-md font-mono text-sm">{currentError}</p>
+                    </CardContent>
+                </Card>
+            )}
         </div>
         
         {data && (
@@ -451,13 +490,6 @@ export default function HouseOfCommonsPage() {
           <HansardChat transcript={getFullTranscriptText()} summary={fullSummary.summary} />
         )}
 
-        {isLoading && !data && (
-            <div className="mt-6 flex justify-center items-center gap-2 text-muted-foreground">
-                <Loader2 className="h-5 w-5 animate-spin" />
-                <span>Fetching and parsing transcript...</span>
-            </div>
-        )}
-
         {data && (
           <div className="mt-6 space-y-6">
             <Accordion type="single" collapsible className="w-full">
@@ -492,3 +524,5 @@ export default function HouseOfCommonsPage() {
     </div>
   );
 }
+
+    

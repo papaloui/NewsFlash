@@ -3,55 +3,58 @@
 
 import { XMLParser } from "fast-xml-parser";
 import { summarizeBills, type SummarizeBillsInput } from "@/ai/flows/summarize-bills";
+import { unstable_cache } from 'next/cache';
 
 // Helper function to introduce a delay
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-export async function getBillsData(): Promise<any> {
-    try {
-        const xmlUrl = 'https://www.parl.ca/legisinfo/en/bills/xml';
-        
-        const response = await fetch(xmlUrl, {
-            next: { revalidate: 3600 } 
-        });
+export const getBillsData = unstable_cache(
+    async (): Promise<any> => {
+        try {
+            const xmlUrl = 'https://www.parl.ca/legisinfo/en/bills/xml';
+            
+            const response = await fetch(xmlUrl);
 
-        if (!response.ok) {
-            throw new Error(`Failed to fetch bills XML data from ${xmlUrl}: ${response.statusText}`);
-        }
-        
-        const xmlText = await response.text();
-
-        const parser = new XMLParser({
-            ignoreAttributes: false,
-            attributeNamePrefix: "",
-            parseTagValue: (tagName, tagValue, jPath, isLeafNode, isAttribute) => {
-                if (tagValue === '' && (jPath.endsWith('Id') || jPath.endsWith('Number'))) {
-                    return 0;
-                }
-                return tagValue;
-            },
-            tagValueProcessor: (tagName, tagValue) => {
-                 if (tagValue && typeof tagValue === 'string') {
-                    return tagValue.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
-                }
-                return tagValue;
+            if (!response.ok) {
+                throw new Error(`Failed to fetch bills XML data from ${xmlUrl}: ${response.statusText}`);
             }
-        });
+            
+            const xmlText = await response.text();
 
-        const data = parser.parse(xmlText);
+            const parser = new XMLParser({
+                ignoreAttributes: false,
+                attributeNamePrefix: "",
+                parseTagValue: (tagName, tagValue, jPath, isLeafNode, isAttribute) => {
+                    if (tagValue === '' && (jPath.endsWith('Id') || jPath.endsWith('Number'))) {
+                        return 0;
+                    }
+                    return tagValue;
+                },
+                tagValueProcessor: (tagName, tagValue) => {
+                     if (tagValue && typeof tagValue === 'string') {
+                        return tagValue.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
+                    }
+                    return tagValue;
+                }
+            });
 
-        if (!data.Bills || !data.Bills.Bill) {
-            throw new Error("Parsed XML data does not contain 'Bills.Bill' property as expected.");
+            const data = parser.parse(xmlText);
+
+            if (!data.Bills || !data.Bills.Bill) {
+                throw new Error("Parsed XML data does not contain 'Bills.Bill' property as expected.");
+            }
+
+            return { Bills: data.Bills.Bill };
+
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
+            console.error('Error in getBillsData:', error);
+            return { error: errorMessage };
         }
-
-        return { Bills: data.Bills.Bill };
-
-    } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
-        console.error('Error in getBillsData:', error);
-        return { error: errorMessage };
-    }
-}
+    },
+    ['federal-bills'], // Cache key
+    { revalidate: 3600 } // Revalidate every hour
+);
 
 async function getBillText(bill: any): Promise<string> {
     const billTypePath = bill.BillTypeEn.toLowerCase().includes('government') ? 'Government' : 'Private';

@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview Summarizes a batch of articles in a single AI request.
@@ -23,7 +24,7 @@ export type SummarizeArticlesInput = z.infer<typeof SummarizeArticlesInputSchema
 
 const ArticleSummarySchema = z.object({
     link: z.string().url().describe('The original URL of the article to map it back.'),
-    summary: z.string().describe('A concise, 1-2 sentence summary of the article.'),
+    summary: z.string().describe('A concise, 4-5 sentence summary of the article.'),
 });
 
 const SummarizeArticlesOutputSchema = z.array(ArticleSummarySchema);
@@ -34,19 +35,21 @@ export async function summarizeArticles(input: SummarizeArticlesInput): Promise<
     return summarizeArticlesFlow(input);
 }
 
-const promptTemplate = `You are a news summarization expert. You will be given a JSON array of news articles.
-For each article, generate a concise and neutral 1-2 sentence summary.
-Your output MUST be a valid JSON array, where each object contains the original "link" and the generated "summary". Do not include any other text or explanation outside of the JSON array itself.
+const promptTemplate = `You are a news summarization expert. You will be given a list of news articles.
+For each article, generate a concise and neutral 4-5 sentence summary.
+Your output MUST be a valid JSON array, where each object contains the original "link" of the article and the generated "summary". Do not include any other text or explanation outside of the JSON array itself.
 
-Input Articles:
-{{jsonStringify this}}
+Here are the articles:
+---
+{{{articlesAsText}}}
+---
 
 Your JSON Output:
 `;
 
 export const summarizeArticlesPrompt = ai.definePrompt({
     name: 'summarizeArticlesPrompt',
-    input: { schema: SummarizeArticlesInputSchema },
+    input: { schema: z.object({ articlesAsText: z.string() }) },
     output: { schema: SummarizeArticlesOutputSchema },
     prompt: promptTemplate,
 });
@@ -57,8 +60,18 @@ const summarizeArticlesFlow = ai.defineFlow(
         inputSchema: SummarizeArticlesInputSchema,
         outputSchema: SummarizeArticlesOutputSchema,
     },
-    async (input) => {
-        const { output } = await summarizeArticlesPrompt(input);
+    async (articles) => {
+        const articlesAsText = articles.map(article => 
+`Article
+Link: ${article.link}
+Source: ${article.source}
+Headline: ${article.headline}
+Publication Date: ${article.publicationDate}
+Body:
+${article.body.substring(0, 4000)}...` // Truncate body to be safe with token limits
+        ).join('\n\n---\n\n');
+
+        const { output } = await summarizeArticlesPrompt({ articlesAsText });
         
         if (!output) {
             throw new Error("The AI model did not return any output. The response was empty.");

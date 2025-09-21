@@ -1,9 +1,9 @@
 
 import { ArticleListItem } from "./article-list-item";
-import type { ArticleWithStatus } from "@/app/page";
+import type { Article } from "@/lib/types";
 
 interface NewsBoardProps {
-  articles: ArticleWithStatus[];
+  articles: Article[];
 }
 
 export function NewsBoard({ articles }: NewsBoardProps) {

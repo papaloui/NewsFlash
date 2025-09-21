@@ -1,9 +1,8 @@
 
 'use server';
 
-import { getArticleContent as extractArticle } from "@/app/actions";
-import { XMLParser } from "fast-xml-parser";
-import { summarizeFullArticleText } from "@/ai/flows/summarize-full-article";
+import { rankPubMedArticles, type RankPubMedArticlesInput } from "@/ai/flows/rank-pubmed-articles";
+import { extractArticleContent } from "@/lib/content-extractor";
 
 export interface PubMedArticle {
     title: string;
@@ -11,13 +10,9 @@ export interface PubMedArticle {
     journal: string;
     publication_date: string;
     abstract: string;
-    pmid: string;
+    pmid: string; // Ensure pmid is consistently a string
     doi?: string;
     fullTextUrl?: string;
-    body?: string;
-    isBodyLoading?: boolean;
-    summary?: string;
-    isSummarizing?: boolean;
 }
 
 const get = (obj: any, path: string, defaultValue: any = null) => {
@@ -26,18 +21,10 @@ const get = (obj: any, path: string, defaultValue: any = null) => {
 };
 
 const extractText = (field: any): string => {
-    if (typeof field === 'string') {
-        return field;
-    }
-    if (typeof field === 'object' && field !== null && field['#text']) {
-        return field['#text'];
-    }
-    if (Array.isArray(field)) {
-        return field.map(extractText).join('');
-    }
-    if (typeof field === 'object' && field !== null) {
-        return Object.values(field).flat().map(extractText).join('');
-    }
+    if (typeof field === 'string') return field;
+    if (typeof field === 'object' && field !== null && field['#text']) return field['#text'];
+    if (Array.isArray(field)) return field.map(extractText).join('');
+    if (typeof field === 'object' && field !== null) return Object.values(field).flat().map(extractText).join('');
     return 'No title available';
 };
 
@@ -67,15 +54,22 @@ const extractAbstract = (abstractNode: any): string => {
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 
-export async function getPubMedArticles(): Promise<{ articles?: PubMedArticle[], error?: string }> {
-    const searchTerm = "strength training";
-    const retmax = 20;
+export async function getAndRankPubMedArticles(): Promise<{ articles?: PubMedArticle[], error?: string }> {
+    const searchTerm = "strength training OR exercise recovery OR sports performance OR athlete";
+    const retmax = 50; 
 
     try {
-        const esearchUrl = `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=${encodeURIComponent(searchTerm)}&retmax=${retmax}&sort=pub+date&retmode=json&reldate=1`;
+        const esearchUrl = `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=${encodeURIComponent(searchTerm)}&retmax=${retmax}&sort=pub+date&reldate=7&retmode=json`;
+        console.log(`[PubMed] Fetching PMIDs from: ${esearchUrl}`);
         const esearchResponse = await fetch(esearchUrl);
         if (!esearchResponse.ok) throw new Error(`Failed ESearch: ${esearchResponse.statusText}`);
-        const esearchData = await esearchResponse.json();
+
+        const esearchText = await esearchResponse.text();
+        if (esearchText.trim().startsWith('<')) {
+            throw new Error(`PubMed ESearch returned an unexpected XML response instead of JSON. This may be an API error. Content: ${esearchText.slice(0, 200)}`);
+        }
+        const esearchData = JSON.parse(esearchText);
+
         const pmidList = get(esearchData, 'esearchresult.idlist', []);
         if (!pmidList || pmidList.length === 0) return { articles: [] };
 
@@ -83,27 +77,13 @@ export async function getPubMedArticles(): Promise<{ articles?: PubMedArticle[],
         await sleep(200);
 
         const efetchUrl = `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=${pmidString}&retmode=xml`;
+        console.log(`[PubMed] Fetching article data from: ${efetchUrl}`);
         const efetchResponse = await fetch(efetchUrl);
         if (!efetchResponse.ok) throw new Error(`Failed EFetch: ${efetchResponse.statusText}`);
         const xmlText = await efetchResponse.text();
         await sleep(200);
-
-        const elinkUrl = `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/elink.fcgi?dbfrom=pubmed&id=${pmidString}&retmode=json`;
-        const elinkResponse = await fetch(elinkUrl);
-        let pmidToUrlMap: { [key: string]: string } = {};
-        if (elinkResponse.ok) {
-            const elinkData = await elinkResponse.json();
-            const linksets = get(elinkData, 'linksets', []);
-            for (const linkset of linksets) {
-                const pmid = get(linkset, 'ids.0');
-                if (!pmid) continue;
-                const fullTextDb = get(linkset, 'linksetdbs', []).find((db: any) => db.linkname === 'pubmed_pubmed_fulltext');
-                if (fullTextDb && fullTextDb.links && fullTextDb.links.length > 0) {
-                    pmidToUrlMap[pmid] = fullTextDb.links[0];
-                }
-            }
-        }
-
+        
+        const { XMLParser } = await import("fast-xml-parser");
         const parser = new XMLParser({
             ignoreAttributes: false, attributeNamePrefix: "@_", parseTagValue: true,
             trimValues: true, textNodeName: "#text",
@@ -112,11 +92,18 @@ export async function getPubMedArticles(): Promise<{ articles?: PubMedArticle[],
         const parsedXml = parser.parse(xmlText);
         const articlesFromXml = get(parsedXml, 'PubmedArticleSet.PubmedArticle', []);
         
-        const articles: PubMedArticle[] = articlesFromXml.map((article: any) => {
+        const allArticlesMap = new Map<string, PubMedArticle>();
+        
+        articlesFromXml.forEach((article: any) => {
             const articleData = get(article, 'MedlineCitation.Article');
-            const pmid = get(article, 'MedlineCitation.PMID.#text');
+            // Ensure PMID is a string from the very beginning.
+            const pmidValue = get(article, 'MedlineCitation.PMID.#text');
+            if (!pmidValue) return; // Skip if no PMID
+            const pmid = String(pmidValue);
+
             const title = extractText(get(articleData, 'ArticleTitle', 'No title available'));
-            const authors = get(articleData, 'AuthorList.Author', []).map((a: any) => `${get(a, 'ForeName', '')} ${get(a, 'LastName', '')}`.trim()).filter(Boolean);
+            const authorsList = get(articleData, 'AuthorList.Author', []).map((a: any) => `${get(a, 'ForeName', '')} ${get(a, 'LastName', '')}`.trim()).filter(Boolean);
+            const authors = authorsList;
             const journal = get(articleData, 'Journal.Title', 'N/A');
             const pubDate = get(articleData, 'Journal.JournalIssue.PubDate');
             const publication_date = [get(pubDate, 'Year', ''), get(pubDate, 'Month', ''), get(pubDate, 'Day', '')].filter(Boolean).join('-');
@@ -124,39 +111,36 @@ export async function getPubMedArticles(): Promise<{ articles?: PubMedArticle[],
             const doiObject = get(article, 'PubmedData.ArticleIdList.ArticleId', []).find((id: any) => id['@_IdType'] === 'doi');
             const doi = doiObject ? doiObject['#text'] : undefined;
             
-            let fullTextUrl = pmidToUrlMap[pmid];
-            if (!fullTextUrl && doi) fullTextUrl = `https://doi.org/${doi}`;
+            let fullTextUrl = `https://pubmed.ncbi.nlm.nih.gov/${pmid}/`;
+            if (doi) fullTextUrl = `https://doi.org/${doi}`;
+            
+            const articleObject: PubMedArticle = { title, authors, journal, publication_date, abstract, pmid, doi, fullTextUrl };
 
-            return { title, authors, journal, publication_date, abstract, pmid, doi, fullTextUrl };
-        }).filter((a: PubMedArticle) => a.title && a.title !== 'No title available');
+            if (articleObject.title !== 'No title available') {
+                 allArticlesMap.set(pmid, articleObject);
+            }
+        });
+
+        const articlesForRanking: RankPubMedArticlesInput = Array.from(allArticlesMap.values()).map(article => ({
+            pmid: article.pmid,
+            title: article.title,
+        }));
         
-        return { articles };
+        if(articlesForRanking.length === 0) {
+            return { articles: [] };
+        }
+
+        const rankedArticleIdentifiers = await rankPubMedArticles(articlesForRanking);
+        
+        const finalRankedArticles: PubMedArticle[] = rankedArticleIdentifiers.map(ranked => {
+            return allArticlesMap.get(ranked.pmid)!;
+        }).filter(Boolean);
+
+        return { articles: finalRankedArticles };
 
     } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
-        console.error('Error in getPubMedArticles:', error);
+        let errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
+        console.error('Error in getAndRankPubMedArticles:', error);
         return { error: errorMessage };
-    }
-}
-
-
-export async function getFullArticleText(url: string): Promise<string> {
-    if (!url) {
-        return "No URL provided.";
-    }
-    return await extractArticle(url);
-}
-
-export async function summarizeFullArticle(articleText: string): Promise<string> {
-    if (!articleText) {
-        return "No article text provided to summarize.";
-    }
-    try {
-        const result = await summarizeFullArticleText({ articleText });
-        return result.summary;
-    } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : "An unknown AI error occurred.";
-        console.error("Error summarizing article:", error);
-        throw new Error(errorMessage);
     }
 }
