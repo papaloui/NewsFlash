@@ -8,9 +8,15 @@ import type { SummarizeArticlesInput, SummarizeArticlesOutput } from '@/ai/flows
 export async function getArticleContent(articleLink: string): Promise<string> {
     try {
         console.log(`[Request Log] Fetching article content from: ${articleLink}`);
-        // Some sites block requests without a user agent.
+        // Many sites block requests that don't look like they're from a real browser.
+        // These headers help mimic a standard browser request.
         const headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Connection': 'keep-alive',
+            'Upgrade-Insecure-Requests': '1',
+            'Referer': 'https://www.google.com/' // Pretend we're coming from Google
         };
 
         const response = await fetch(articleLink, { headers, redirect: 'follow' });
