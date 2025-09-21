@@ -2,7 +2,7 @@
 'use server';
 
 import { rankPubMedArticles, type RankPubMedArticlesInput } from "@/ai/flows/rank-pubmed-articles";
-import { extractArticleContent } from "@/lib/content-extractor";
+import { XMLParser } from "fast-xml-parser";
 
 export interface PubMedArticle {
     title: string;
@@ -12,7 +12,6 @@ export interface PubMedArticle {
     abstract: string;
     pmid: string; // Ensure pmid is consistently a string
     doi?: string;
-    fullTextUrl?: string;
 }
 
 const get = (obj: any, path: string, defaultValue: any = null) => {
@@ -83,7 +82,6 @@ export async function getAndRankPubMedArticles(): Promise<{ articles?: PubMedArt
         const xmlText = await efetchResponse.text();
         await sleep(200);
         
-        const { XMLParser } = await import("fast-xml-parser");
         const parser = new XMLParser({
             ignoreAttributes: false, attributeNamePrefix: "@_", parseTagValue: true,
             trimValues: true, textNodeName: "#text",
@@ -105,16 +103,18 @@ export async function getAndRankPubMedArticles(): Promise<{ articles?: PubMedArt
             const authorsList = get(articleData, 'AuthorList.Author', []).map((a: any) => `${get(a, 'ForeName', '')} ${get(a, 'LastName', '')}`.trim()).filter(Boolean);
             const authors = authorsList;
             const journal = get(articleData, 'Journal.Title', 'N/A');
+
             const pubDate = get(articleData, 'Journal.JournalIssue.PubDate');
-            const publication_date = [get(pubDate, 'Year', ''), get(pubDate, 'Month', ''), get(pubDate, 'Day', '')].filter(Boolean).join('-');
+            const pubYear = get(pubDate, 'Year', '');
+            const pubMonth = get(pubDate, 'Month', '');
+            const pubDay = get(pubDate, 'Day', '');
+            const publication_date = [pubYear, pubMonth, pubDay].filter(Boolean).join('-');
+
             const abstract = extractAbstract(get(articleData, 'Abstract'));
             const doiObject = get(article, 'PubmedData.ArticleIdList.ArticleId', []).find((id: any) => id['@_IdType'] === 'doi');
             const doi = doiObject ? doiObject['#text'] : undefined;
             
-            let fullTextUrl = `https://pubmed.ncbi.nlm.nih.gov/${pmid}/`;
-            if (doi) fullTextUrl = `https://doi.org/${doi}`;
-            
-            const articleObject: PubMedArticle = { title, authors, journal, publication_date, abstract, pmid, doi, fullTextUrl };
+            const articleObject: PubMedArticle = { title, authors, journal, publication_date, abstract, pmid, doi };
 
             if (articleObject.title !== 'No title available') {
                  allArticlesMap.set(pmid, articleObject);
@@ -142,5 +142,79 @@ export async function getAndRankPubMedArticles(): Promise<{ articles?: PubMedArt
         let errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
         console.error('Error in getAndRankPubMedArticles:', error);
         return { error: errorMessage };
+    }
+}
+
+
+function parseNxmlBody(node: any): string {
+    if (!node) return '';
+    if (typeof node === 'string') return node + ' ';
+    if (Array.isArray(node)) return node.map(parseNxmlBody).join('');
+
+    let text = '';
+    if (node['#text']) {
+        text += node['#text'] + ' ';
+    }
+    
+    // Recursively parse child nodes
+    for (const key in node) {
+        if (key !== '#text' && key !== '@_format' && key !== '@_id' && key !== '@_sec-type') {
+            text += parseNxmlBody(node[key]);
+        }
+    }
+    
+    // Add line breaks for paragraphs
+    if(node.p) text += '\n\n';
+
+    return text;
+}
+
+
+export async function getArticleXmlText(pmid: string): Promise<string> {
+    const url = `http://pmc.jensenlab.org/pmid/${pmid}.nxml`;
+    console.log(`[Request Log] Fetching article XML from: ${url}`);
+    
+    try {
+        const response = await fetch(url);
+
+        if (!response.ok) {
+            if (response.status === 404) {
+                return `Error: Full text not found in the PMC Open Access mirror for PMID ${pmid}. The article may not be part of the open access subset.`;
+            }
+            throw new Error(`Failed to fetch article XML (status: ${response.status}) from ${url}`);
+        }
+        
+        const xmlText = await response.text();
+        
+        const parser = new XMLParser({
+            ignoreAttributes: false,
+            attributeNamePrefix: "@_",
+            parseTagValue: true,
+            trimValues: true,
+            textNodeName: "#text",
+        });
+
+        const parsedXml = parser.parse(xmlText);
+        const bodyNode = get(parsedXml, 'article.body');
+
+        if (!bodyNode) {
+            return "Error: Could not find the 'body' of the article in the XML file. The format might be unexpected.";
+        }
+
+        const fullText = parseNxmlBody(bodyNode);
+        const cleanedText = fullText.replace(/\s\s+/g, ' ').trim();
+        
+        if (cleanedText.length < 100) {
+            return "Error: Extracted very little text from the XML. It may be a stub or an unsupported format.";
+        }
+
+        return cleanedText;
+
+    } catch (error) {
+        console.error(`Error fetching or parsing article XML for PMID ${pmid}:`, error);
+        if (error instanceof Error) {
+            return `Error: ${error.message}`;
+        }
+        return "An unknown error occurred while fetching the article XML.";
     }
 }

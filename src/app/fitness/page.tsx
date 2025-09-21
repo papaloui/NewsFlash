@@ -7,8 +7,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { HeartPulse, Loader2, ServerCrash, User, ExternalLink, Trophy, Sparkles, BookOpen } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { getAndRankPubMedArticles, type PubMedArticle } from './actions';
-import { getArticleContent } from '../actions';
+import { getAndRankPubMedArticles, getArticleXmlText, type PubMedArticle } from './actions';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 
 type ArticleWithText = PubMedArticle & {
@@ -49,13 +48,13 @@ export default function FitnessPage() {
 
     const handleFetchFullText = async (pmid: string) => {
         const targetArticle = articles.find(a => a.pmid === pmid);
-        if (!targetArticle || !targetArticle.fullTextUrl || targetArticle.fullText || targetArticle.isFetchingText) return;
+        if (!targetArticle || targetArticle.fullText || targetArticle.isFetchingText) return;
 
         setArticles(prev => prev.map(a => a.pmid === pmid ? { ...a, isFetchingText: true, textError: undefined } : a));
 
         try {
-            const text = await getArticleContent(targetArticle.fullTextUrl);
-            if(text.startsWith("Error:") || text.startsWith("Could not extract")) {
+            const text = await getArticleXmlText(pmid);
+            if (text.startsWith("Error:")) {
                 throw new Error(text);
             }
             setArticles(prev => prev.map(a => a.pmid === pmid ? { ...a, isFetchingText: false, fullText: text } : a));
@@ -69,6 +68,13 @@ export default function FitnessPage() {
             });
         }
     };
+
+    const getFullTextUrl = (article: PubMedArticle) => {
+      if (article.doi) {
+        return `https://doi.org/${article.doi}`;
+      }
+      return `https://pubmed.ncbi.nlm.nih.gov/${article.pmid}/`;
+    }
 
     return (
         <div className="min-h-screen bg-background">
@@ -136,7 +142,7 @@ export default function FitnessPage() {
                                     
                                      <Accordion type="single" collapsible>
                                         <AccordionItem value="item-1">
-                                            <AccordionTrigger onClick={() => handleFetchFullText(article.pmid)} disabled={!article.fullTextUrl}>
+                                            <AccordionTrigger onClick={() => handleFetchFullText(article.pmid)}>
                                                 <span className="flex items-center gap-2">
                                                     <BookOpen className="h-4 w-4" />
                                                     Read Full Article
@@ -161,14 +167,12 @@ export default function FitnessPage() {
 
                                 </CardContent>
                                 <CardFooter className="flex-col sm:flex-row gap-2 items-center pl-16">
-                                    {article.fullTextUrl && (
-                                        <Button asChild variant="outline" size="sm" className="w-full">
-                                            <a href={article.fullTextUrl} target="_blank" rel="noopener noreferrer">
-                                                Read on Source
-                                                <ExternalLink className="ml-2 h-4 w-4" />
-                                            </a>
-                                        </Button>
-                                    )}
+                                    <Button asChild variant="outline" size="sm" className="w-full">
+                                        <a href={getFullTextUrl(article)} target="_blank" rel="noopener noreferrer">
+                                            Read on Source
+                                            <ExternalLink className="ml-2 h-4 w-4" />
+                                        </a>
+                                    </Button>
                                 </CardFooter>
                             </Card>
                         ))}
