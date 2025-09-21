@@ -32,62 +32,58 @@ export function Header() {
 
         <nav className="flex items-center gap-2 flex-wrap">
             <Link href="/fitness" legacyBehavior={false}>
-              <Button asChild variant="outline">
-                <a>
+              <Button variant="outline">
                   <HeartPulse className="mr-2 h-4 w-4" />
                   Fitness
-                </a>
               </Button>
             </Link>
 
             <DropdownNav title="Federal">
-                <DropdownMenuItem asChild>
-                    <Link href="/house-of-commons" legacyBehavior={false}>
+                <Link href="/house-of-commons" legacyBehavior={false}>
+                    <DropdownMenuItem>
                         <Landmark className="mr-2 h-4 w-4" />
                         House of Commons
-                    </Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                    <Link href="/bills" legacyBehavior={false}>
+                    </DropdownMenuItem>
+                </Link>
+                <Link href="/bills" legacyBehavior={false}>
+                    <DropdownMenuItem>
                         <FileText className="mr-2 h-4 w-4" />
                         Bills
-                    </Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                    <Link href="/canada-gazette" legacyBehavior={false}>
+                    </DropdownMenuItem>
+                </Link>
+                <Link href="/canada-gazette" legacyBehavior={false}>
+                    <DropdownMenuItem>
                         <BookMarked className="mr-2 h-4 w-4" />
                         Canada Gazette
-                    </Link>
-                </DropdownMenuItem>
+                    </DropdownMenuItem>
+                </Link>
             </DropdownNav>
             
             <DropdownNav title="Ontario">
-                 <DropdownMenuItem asChild>
-                    <Link href="/ontario-bills" legacyBehavior={false}>
+                 <Link href="/ontario-bills" legacyBehavior={false}>
+                    <DropdownMenuItem>
                         <Building className="mr-2 h-4 w-4" />
                         Ontario Bills
-                    </Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                    <Link href="/ontario-debates" legacyBehavior={false}>
+                    </DropdownMenuItem>
+                 </Link>
+                <Link href="/ontario-debates" legacyBehavior={false}>
+                    <DropdownMenuItem>
                         <BookCopy className="mr-2 h-4 w-4" />
                         Ontario Debates
-                    </Link>
-                </DropdownMenuItem>
-                 <DropdownMenuItem asChild>
-                    <Link href="/ontario-gazette" legacyBehavior={false}>
+                    </DropdownMenuItem>
+                </Link>
+                 <Link href="/ontario-gazette" legacyBehavior={false}>
+                    <DropdownMenuItem>
                         <Newspaper className="mr-2 h-4 w-4" />
                         Ontario Gazette
-                    </Link>
-                </DropdownMenuItem>
+                    </DropdownMenuItem>
+                 </Link>
             </DropdownNav>
 
             <Link href="/documentation" legacyBehavior={false}>
-              <Button asChild variant="ghost">
-                <a>
+              <Button variant="ghost">
                   <FileCode className="mr-2 h-4 w-4" />
                   Docs
-                </a>
               </Button>
             </Link>
         </nav>
