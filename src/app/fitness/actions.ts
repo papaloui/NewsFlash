@@ -190,7 +190,7 @@ async function convertPmidToPmcid(pmid: string): Promise<string> {
 
 export async function getArticleFullText(pmid: string): Promise<string> {
     try {
-        // Step 1: Convert PMID to PMCID
+        // Step 1: Convert PMID to PMCID if necessary
         const pmcid = await convertPmidToPmcid(pmid);
         await sleep(200);
 
