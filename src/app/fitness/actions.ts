@@ -228,7 +228,7 @@ export async function getArticleFullText(pmid: string): Promise<string> {
         let nxmlContent: string | null = null;
         
         const readableStream = Readable.from(buffer);
-        const parserStream = readableStream.pipe(new tar.Parse());
+        const parserStream = readableStream.pipe(new tar.Parser());
 
         await new Promise<void>((resolve, reject) => {
             parserStream.on('entry', (entry: tar.ReadEntry) => {
