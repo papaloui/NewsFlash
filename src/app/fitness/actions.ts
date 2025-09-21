@@ -33,6 +33,22 @@ const extractAbstract = (abstractNode: any): string => {
     if (typeof abstractNode === 'string') return abstractNode;
     if (abstractNode['#text']) return abstractNode['#text'];
     
+    // Handles structures like <abstract><p>...</p></abstract>
+    if (abstractNode.p) {
+        if (Array.isArray(abstractNode.p)) {
+            return abstractNode.p.map((p: any) => extractText(p)).join('\n\n');
+        }
+        return extractText(abstractNode.p);
+    }
+    
+    // Handles structures like <abstract><sec><p>...</p></sec></abstract>
+    if (abstractNode.sec) {
+         if (Array.isArray(abstractNode.sec)) {
+            return abstractNode.sec.map((s: any) => extractText(s)).join('\n\n');
+        }
+        return extractText(abstractNode.sec);
+    }
+    
     const abstractTexts = abstractNode.AbstractText;
     if (!abstractTexts) return 'No abstract available.';
     if (typeof abstractTexts === 'string') return abstractTexts;
@@ -54,7 +70,6 @@ const extractAbstract = (abstractNode: any): string => {
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 export async function getAndRankPubMedArticles(): Promise<{ articles?: PubMedArticle[], error?: string }> {
-    // Updated search term to target PMC's open access subset
     const searchTerm = `"loattrfree full text"[filter] AND ("strength training" OR "exercise recovery" OR "sports performance" OR "athlete")`;
     const retmax = 50; 
 
@@ -66,8 +81,9 @@ export async function getAndRankPubMedArticles(): Promise<{ articles?: PubMedArt
         if (!esearchResponse.ok) throw new Error(`Failed ESearch on PMC: ${esearchResponse.statusText}`);
 
         const esearchText = await esearchResponse.text();
+        // Defensive check: E-utilities can return XML errors even when JSON is requested.
         if (esearchText.trim().startsWith('<')) {
-            throw new Error(`PMC ESearch returned an unexpected XML response instead of JSON. Content: ${esearchText.slice(0, 200)}`);
+            throw new Error(`PMC ESearch returned an unexpected XML response instead of JSON. This often indicates an error with the query. Content: ${esearchText.slice(0, 500)}`);
         }
         const esearchData = JSON.parse(esearchText);
 
@@ -117,12 +133,13 @@ export async function getAndRankPubMedArticles(): Promise<{ articles?: PubMedArt
             const pubDay = get(pubDate, 'day', '');
             const publication_date = [pubYear, pubMonth, pubDay].filter(Boolean).join('-');
 
-            const abstract = extractAbstract(get(front, 'abstract.0', get(article, 'body')));
+            const abstract = extractAbstract(get(front, 'abstract.0', get(front, 'abstract')));
             
             const doiObj = get(front, 'article-id', []).find((id: any) => id['@_pub-id-type'] === 'doi');
             const doi = doiObj ? doiObj['#text'] : undefined;
+            
             const pmcidObj = get(front, 'article-id', []).find((id: any) => id['@_pub-id-type'] === 'pmc');
-            const pmcid = pmcidObj ? `PMC${pmcidObj['#text']}` : undefined;
+            const pmcid = pmcidObj ? `PMC${pmcidObj['#text']}` : (get(article, 'front.article-meta.article-id', []).find((id:any) => id['@_pub-id-type'] === 'pmc-uid') ? `PMC${get(article, 'front.article-meta.article-id', []).find((id:any) => id['@_pub-id-type'] === 'pmc-uid')['#text']}` : undefined);
 
             const articleObject: PubMedArticle = { title, authors: authorsList, journal, publication_date, abstract, pmid, doi, pmcid };
 
