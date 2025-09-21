@@ -1,8 +1,5 @@
-
-import type {NextConfig} from 'next';
-
-const nextConfig: NextConfig = {
-  /* config options here */
+/** @type {import('next').NextConfig} */
+const nextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
@@ -31,10 +28,12 @@ const nextConfig: NextConfig = {
       },
     ],
   },
-  serverActions: {
-    maxDuration: 600, // 10 minutes
-    bodySizeLimit: '4mb',
+  experimental: {
+    serverActions: {
+      maxDuration: 600, // 10 minutes
+      bodySizeLimit: '4mb',
+    },
   },
 };
 
-export default nextConfig;
+module.exports = nextConfig;
