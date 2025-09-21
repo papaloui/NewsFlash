@@ -2,7 +2,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { XMLParser } from "fast-xml-parser";
 import type { Article } from "@/lib/types";
-import { format } from 'date-fns';
 
 // Helper to safely get a value from a deeply nested object
 const get = (obj: any, path: string, defaultValue: any = null) => {
@@ -22,10 +21,12 @@ const parseArticle = (item: any, channel: any): Article | null => {
     const pubDateString = get(item, 'pubDate', get(item, 'published'));
     let publicationDate: string;
     try {
-        publicationDate = pubDateString ? format(new Date(pubDateString), 'PPP') : format(new Date(), 'PPP');
+        // Use native toLocaleDateString for performance and consistency.
+        // Specifying a locale ('en-US') prevents hydration errors between server/client.
+        publicationDate = pubDateString ? new Date(pubDateString).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric'}) : new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric'});
     } catch (e) {
-        // If date is invalid, fallback to today's date
-        publicationDate = format(new Date(), 'PPP');
+        // If date is invalid, fallback to today's date, consistently formatted.
+        publicationDate = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric'});
     }
 
     // Standardize description/summary parsing
