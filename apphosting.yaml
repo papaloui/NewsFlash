@@ -8,3 +8,5 @@ runConfig:
   # Set the request timeout to 10 minutes (600 seconds) for long-running
   # server actions, like AI summarization.
   timeoutSeconds: 600
+  # Pin to a specific version of the App Hosting infrastructure.
+  pinTag: 'v1'
