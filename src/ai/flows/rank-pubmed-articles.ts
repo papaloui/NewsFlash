@@ -64,17 +64,19 @@ const rankPubMedArticlesFlow = ai.defineFlow(
     outputSchema: RankPubMedArticlesOutputSchema,
   },
   async (articles) => {
-    // Defensive coding: Ensure all PMIDs are strings before any other processing.
-    // This fixes the schema validation error where PMIDs are passed as numbers.
-    const articlesWithSanitizedPmids = articles.map(article => ({
-      ...article,
-      pmid: String(article.pmid),
-    }));
-
-    const articlesAsText = articlesWithSanitizedPmids.map(article => 
-`PMID: ${String(article.pmid)}
+    // The input 'articles' has already been validated against RankPubMedArticlesInputSchema
+    // so we can be sure 'pmid' is a string here.
+    
+    // Create plain text from the validated and typed input.
+    const articlesAsText = articles.map(article => 
+`PMID: ${article.pmid}
 Title: ${article.title}`
     ).join('\n\n---\n\n');
+
+    // DEBUG: Log the text being sent to the AI
+    console.log("--- DEBUG: Text Sent to AI for Ranking ---");
+    console.log(articlesAsText);
+    console.log("-----------------------------------------");
 
     const llmResponse = await prompt({ articlesAsText });
     
