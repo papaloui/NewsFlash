@@ -2,6 +2,7 @@
 'use server';
 
 import { rankPubMedArticles, type RankPubMedArticlesInput } from "@/ai/flows/rank-pubmed-articles";
+import { summarizePubMedArticles } from "@/ai/flows/summarize-pubmed-articles";
 import { XMLParser } from "fast-xml-parser";
 
 export interface PubMedArticle {
@@ -12,7 +13,7 @@ export interface PubMedArticle {
     abstract: string;
     pmid: string; 
     doi?: string;
-    pmcid?: string;
+    fullTextUrl?: string;
 }
 
 const get = (obj: any, path: string, defaultValue: any = null) => {
@@ -21,42 +22,52 @@ const get = (obj: any, path: string, defaultValue: any = null) => {
 };
 
 const extractText = (field: any): string => {
-    if (typeof field === 'string') return field;
-    if (typeof field === 'object' && field !== null && field['#text']) return field['#text'];
-    if (Array.isArray(field)) return field.map(extractText).join('');
-    if (typeof field === 'object' && field !== null) return Object.values(field).flat().map(extractText).join('');
+    if (typeof field === 'string') {
+        return field;
+    }
+    if (typeof field === 'object' && field !== null && field['#text']) {
+        return field['#text'];
+    }
+    if (Array.isArray(field)) {
+        return field.map(extractText).join('');
+    }
+    if (typeof field === 'object' && field !== null) {
+        // This handles cases where the title has formatting like <i> or <sub>
+        return Object.values(field).flat().map(extractText).join('');
+    }
     return 'No title available';
 };
 
 const extractAbstract = (abstractNode: any): string => {
     if (!abstractNode) return 'No abstract available.';
-    if (typeof abstractNode === 'string') return abstractNode;
-    if (abstractNode['#text']) return abstractNode['#text'];
     
-    // Handles structures like <abstract><p>...</p></abstract>
-    if (abstractNode.p) {
-        if (Array.isArray(abstractNode.p)) {
-            return abstractNode.p.map((p: any) => extractText(p)).join('\n\n');
-        }
-        return extractText(abstractNode.p);
+    // Case 1: Abstract is a simple string
+    if (typeof abstractNode === 'string') {
+        return abstractNode;
+    }
+
+    // Case 2: Abstract is an object with a text node
+    if (abstractNode['#text']) {
+        return abstractNode['#text'];
     }
     
-    // Handles structures like <abstract><sec><p>...</p></sec></abstract>
-    if (abstractNode.sec) {
-         if (Array.isArray(abstractNode.sec)) {
-            return abstractNode.sec.map((s: any) => extractText(s)).join('\n\n');
-        }
-        return extractText(abstractNode.sec);
-    }
-    
+    // Case 3: Abstract is an object with AbstractText
     const abstractTexts = abstractNode.AbstractText;
     if (!abstractTexts) return 'No abstract available.';
-    if (typeof abstractTexts === 'string') return abstractTexts;
+
+    // If AbstractText is a string
+    if (typeof abstractTexts === 'string') {
+        return abstractTexts;
+    }
     
+    // If AbstractText is an array of strings or objects
     if (Array.isArray(abstractTexts)) {
         return abstractTexts.map(part => {
-            if (typeof part === 'string') return part;
+            if (typeof part === 'string') {
+                return part;
+            }
             if (typeof part === 'object' && part !== null) {
+                // For structured abstracts like { '@_Label': 'CONCLUSION', '#text': '...' }
                 const label = part['@_Label'] ? `${part['@_Label']}: ` : '';
                 const text = part['#text'] || '';
                 return `${label}${text}`;
@@ -64,87 +75,96 @@ const extractAbstract = (abstractNode: any): string => {
             return '';
         }).join('\n');
     }
+
+    // Fallback for any other unexpected structure
     return 'No abstract available.';
 }
+
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 export async function getAndRankPubMedArticles(): Promise<{ articles?: PubMedArticle[], error?: string }> {
-    const searchTerm = `"loattrfree full text"[filter] AND ("strength training" OR "exercise recovery" OR "sports performance" OR "athlete")`;
+    const searchTerm = "strength training OR cardiac rehab OR exercise recovery OR cardiovascular exercise";
     const retmax = 50; 
 
     try {
-        // Step 1: ESearch PMC database for open access articles from the last 60 days
-        const esearchUrl = `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pmc&term=${encodeURIComponent(searchTerm)}&retmax=${retmax}&sort=pub+date&reldate=60&retmode=json`;
-        console.log(`[PMC] Fetching article IDs from: ${esearchUrl}`);
+        // Step 1: ESearch to get recent PMIDs
+        const esearchUrl = `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=${encodeURIComponent(searchTerm)}&retmax=${retmax}&sort=pub+date&reldate=60&retmode=json`;
+        console.log(`[PubMed] Fetching PMIDs from: ${esearchUrl}`);
+        
         const esearchResponse = await fetch(esearchUrl);
-        if (!esearchResponse.ok) throw new Error(`Failed ESearch on PMC: ${esearchResponse.statusText}`);
-
-        const esearchText = await esearchResponse.text();
-        // Defensive check: E-utilities can return XML errors even when JSON is requested.
-        if (esearchText.trim().startsWith('<')) {
-            throw new Error(`PMC ESearch returned an unexpected XML response instead of JSON. This often indicates an error with the query. Content: ${esearchText.slice(0, 500)}`);
+        if (!esearchResponse.ok) {
+            throw new Error(`Failed to fetch from ESearch: ${esearchResponse.statusText}`);
         }
-        const esearchData = JSON.parse(esearchText);
+        const esearchData = await esearchResponse.json();
+        const pmidList = get(esearchData, 'esearchresult.idlist', []);
 
-        const idList = get(esearchData, 'esearchresult.idlist', []);
-        if (!idList || idList.length === 0) return { articles: [] };
+        if (!pmidList || pmidList.length === 0) {
+            return { articles: [] };
+        }
+        const pmidString = pmidList.join(',');
 
-        const idString = idList.join(',');
-        await sleep(200);
+        await sleep(200); // Polite delay
 
-        // Step 2: EFetch from PMC database to get full article data
-        const efetchUrl = `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pmc&id=${idString}&retmode=xml`;
-        console.log(`[PMC] Fetching article data from: ${efetchUrl}`);
+        // Step 2: EFetch for metadata
+        const efetchUrl = `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=${pmidString}&retmode=xml`;
+        console.log(`[PubMed] Fetching article data from: ${efetchUrl}`);
         const efetchResponse = await fetch(efetchUrl);
-        if (!efetchResponse.ok) throw new Error(`Failed EFetch on PMC: ${efetchResponse.statusText}`);
+        if (!efetchResponse.ok) {
+            throw new Error(`Failed to fetch from EFetch: ${efetchResponse.statusText}`);
+        }
         const xmlText = await efetchResponse.text();
         
+        await sleep(200); // Polite delay
+
+        // Step 3: Parse XML
         const parser = new XMLParser({
-            ignoreAttributes: false, attributeNamePrefix: "@_", parseTagValue: true,
-            trimValues: true, textNodeName: "#text",
-            isArray: (name) => ['article', 'author', 'abstract', 'article-id', 'contrib'].includes(name)
+            ignoreAttributes: false,
+            attributeNamePrefix: "@_",
+            parseTagValue: true,
+            trimValues: true,
+            textNodeName: "#text",
+            isArray: (name, jpath, isLeafNode, isAttribute) => {
+                 const arrayPaths = new Set(['PubmedArticle', 'Author', 'AbstractText', 'ArticleId']);
+                 return arrayPaths.has(name);
+            }
         });
         const parsedXml = parser.parse(xmlText);
-        const articlesFromXml = get(parsedXml, 'pmc-articleset.article', []);
+        const articlesFromXml = get(parsedXml, 'PubmedArticleSet.PubmedArticle', []);
         
         const allArticlesMap = new Map<string, PubMedArticle>();
         
         articlesFromXml.forEach((article: any) => {
-            const front = get(article, 'front.article-meta');
-            if (!front) return;
+            const articleData = get(article, 'MedlineCitation.Article');
+            const pmid = get(article, 'MedlineCitation.PMID.#text');
 
-            const pmidObj = get(front, 'article-id', []).find((id: any) => id['@_pub-id-type'] === 'pmid');
-            const pmid = pmidObj ? String(pmidObj['#text']) : null;
-            if (!pmid) return; // We need a PMID to rank and map
-
-            const title = extractText(get(front, 'title-group.article-title', 'No title available'));
+            const titleField = get(articleData, 'ArticleTitle', 'No title available');
+            const title = extractText(titleField);
             
-            const authorsList = get(front, 'contrib-group.0.contrib', get(front, 'contrib-group.contrib', []))
-                .filter((c: any) => c['@_contrib-type'] === 'author')
-                .map((a: any) => `${get(a, 'name.given-names', '')} ${get(a, 'name.surname', '')}`.trim())
-                .filter(Boolean);
+            const authorsList = get(articleData, 'AuthorList.Author', []);
+            const authors = authorsList.map((author: any) => `${get(author, 'ForeName', '')} ${get(author, 'LastName', '')}`.trim()).filter((name: string) => name);
 
-            const journal = get(front, 'journal-meta.journal-title-group.journal-title', 'N/A');
-
-            const pubDate = get(front, 'pub-date', [])[0]; // Get first pub date
-            const pubYear = get(pubDate, 'year', '');
-            const pubMonth = get(pubDate, 'month', '');
-            const pubDay = get(pubDate, 'day', '');
+            const journal = get(articleData, 'Journal.Title', 'N/A');
+            
+            const pubDate = get(articleData, 'Journal.JournalIssue.PubDate');
+            const pubYear = get(pubDate, 'Year', '');
+            const pubMonth = get(pubDate, 'Month', '');
+            const pubDay = get(pubDate, 'Day', '');
             const publication_date = [pubYear, pubMonth, pubDay].filter(Boolean).join('-');
 
-            const abstract = extractAbstract(get(front, 'abstract.0', get(front, 'abstract')));
-            
-            const doiObj = get(front, 'article-id', []).find((id: any) => id['@_pub-id-type'] === 'doi');
-            const doi = doiObj ? doiObj['#text'] : undefined;
-            
-            const pmcidObj = get(front, 'article-id', []).find((id: any) => id['@_pub-id-type'] === 'pmc');
-            const pmcid = pmcidObj ? `PMC${pmcidObj['#text']}` : (get(article, 'front.article-meta.article-id', []).find((id:any) => id['@_pub-id-type'] === 'pmc-uid') ? `PMC${get(article, 'front.article-meta.article-id', []).find((id:any) => id['@_pub-id-type'] === 'pmc-uid')['#text']}` : undefined);
+            const abstractNode = get(articleData, 'Abstract');
+            const abstract = extractAbstract(abstractNode);
 
-            const articleObject: PubMedArticle = { title, authors: authorsList, journal, publication_date, abstract, pmid, doi, pmcid };
+            // Extract DOI
+            const articleIdList = get(article, 'PubmedData.ArticleIdList.ArticleId', []);
+            const doiObject = articleIdList.find((id: any) => id['@_IdType'] === 'doi');
+            const doi = doiObject ? doiObject['#text'] : undefined;
+            
+            let fullTextUrl = doi ? `https://doi.org/${doi}` : `https://pubmed.ncbi.nlm.nih.gov/${pmid}/`;
 
-            if (articleObject.title !== 'No title available') {
-                 allArticlesMap.set(pmid, articleObject);
+            const articleObject: PubMedArticle = { title, authors, journal, publication_date, abstract, pmid, doi, fullTextUrl };
+            if (pmid) {
+                allArticlesMap.set(pmid, articleObject);
             }
         });
 

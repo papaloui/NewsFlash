@@ -33,7 +33,7 @@ export default function FitnessPage() {
             toast({
                 variant: 'destructive',
                 title: 'Operation Failed',
-                description: 'Could not fetch or rank articles from PMC. See details below.',
+                description: 'Could not fetch or rank articles from PubMed. See details below.',
             });
         } finally {
             setIsLoading(false);
@@ -41,8 +41,8 @@ export default function FitnessPage() {
     };
     
     const getArticleUrl = (article: PubMedArticle) => {
-        if (article.pmcid) {
-            return `https://www.ncbi.nlm.nih.gov/pmc/articles/${article.pmcid}/`;
+        if (article.fullTextUrl) {
+            return article.fullTextUrl;
         }
         if (article.doi) {
             return `https://doi.org/${article.doi}`;
@@ -61,7 +61,7 @@ export default function FitnessPage() {
                             Fitness & Health Research Digest
                         </CardTitle>
                         <CardDescription>
-                            Fetches and ranks the latest full-text, open-access exercise science articles from PubMed Central (PMC). Articles are from the last 7 days.
+                            Fetches and ranks the latest exercise science articles from PubMed from the last 60 days.
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
