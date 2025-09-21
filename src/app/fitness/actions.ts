@@ -3,8 +3,8 @@
 
 import { rankPubMedArticles, type RankPubMedArticlesInput } from "@/ai/flows/rank-pubmed-articles";
 import { XMLParser } from "fast-xml-parser";
-import * as tar from 'tar';
-import { Readable } from 'stream';
+import { JSDOM } from 'jsdom';
+import { Readability } from '@mozilla/readability';
 
 export interface PubMedArticle {
     title: string;
@@ -12,10 +12,17 @@ export interface PubMedArticle {
     journal: string;
     publication_date: string;
     abstract: string;
-    pmid: string; // Ensure pmid is consistently a string
+    pmid: string; 
     doi?: string;
     pmcid?: string;
 }
+
+export interface ScrapeResult {
+    content: string | null;
+    error: string | null;
+    log: string[];
+}
+
 
 const get = (obj: any, path: string, defaultValue: any = null) => {
     const value = path.split('.').reduce((acc, c) => (acc && acc[c]) ? acc[c] : undefined, obj);
@@ -151,147 +158,51 @@ export async function getAndRankPubMedArticles(): Promise<{ articles?: PubMedArt
     }
 }
 
-function parseNxmlBody(node: any): string {
-    if (!node) return '';
-    if (typeof node === 'string') return node + ' ';
-    if (Array.isArray(node)) return node.map(parseNxmlBody).join('');
 
-    let text = '';
-    if (node['#text']) {
-        text += node['#text'] + ' ';
-    }
-    
-    for (const key in node) {
-        if (key !== '#text' && !key.startsWith('@_')) {
-            text += parseNxmlBody(node[key]);
-        }
-    }
-    
-    if(node.p) text += '\n\n';
+export async function scrapeArticleContent(url: string): Promise<ScrapeResult> {
+    const log: string[] = [];
+    const headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.9',
+        'Connection': 'keep-alive',
+        'Upgrade-Insecure-Requests': '1',
+        'Referer': 'https://www.google.com/'
+    };
 
-    return text;
-}
-
-
-async function convertPmidToPmcid(pmid: string): Promise<string> {
-    const url = `https://www.ncbi.nlm.nih.gov/pmc/utils/idconv/v1.0/?ids=${pmid}&format=json`;
-    console.log(`[ID Converter] Fetching PMCID for PMID ${pmid} from ${url}`);
-    const response = await fetch(url);
-    if (!response.ok) {
-        throw new Error(`ID Converter API failed with status ${response.status}`);
-    }
-    const data = await response.json();
-    const record = data.records?.[0];
-    if (record && record.pmcid) {
-        return record.pmcid;
-    }
-    throw new Error(`PMCID not found for PMID ${pmid}. The article may not be in PubMed Central.`);
-}
-
-export async function getArticleFullText(pmid: string): Promise<string> {
     try {
-        // Step 1: Convert PMID to PMCID if necessary
-        const pmcid = await convertPmidToPmcid(pmid);
-        await sleep(200);
+        log.push(`1. Initiating scrape for URL: ${url}`);
+        log.push(`2. Using headers: ${JSON.stringify(headers, null, 2)}`);
 
-        // Step 2: Use PMCID to query the OA Web Service API
-        const oaUrl = `https://www.ncbi.nlm.nih.gov/pmc/utils/oa/oa.fcgi?id=${pmcid}`;
-        console.log(`[OA API] Fetching download link for ${pmcid} from ${oaUrl}`);
-        const oaResponse = await fetch(oaUrl);
-        if (!oaResponse.ok) {
-            throw new Error(`OA API failed with status ${oaResponse.status}`);
-        }
-        const oaXmlText = await oaResponse.text();
-
-        const parser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: "@_" });
-        const oaData = parser.parse(oaXmlText);
+        const response = await fetch(url, { headers, redirect: 'follow' });
+        log.push(`3. Received response with status: ${response.status} ${response.statusText}`);
         
-        const tgzLink = get(oaData, 'OA.records.record.link')?.find((l: any) => l['@_format'] === 'tgz');
-        if (!tgzLink || !tgzLink['@_href']) {
-            return `Error: Full text not available in the PMC Open Access subset for PMCID ${pmcid}.`;
+        if (!response.ok) {
+            throw new Error(`Request failed with status: ${response.status}`);
         }
 
-        const ftpUrl = tgzLink['@_href'];
-        console.log(`[OA API] Found .tar.gz link: ${ftpUrl}`);
-        await sleep(200);
-
-        // Step 3: Fetch the .tar.gz file
-        const ftpResponse = await fetch(ftpUrl);
-        if (!ftpResponse.ok) {
-            throw new Error(`Failed to download .tar.gz file from ${ftpUrl}: Status ${ftpResponse.status}`);
-        }
-
-        // Step 4: Decompress and find the .nxml file
-        const arrayBuffer = await ftpResponse.arrayBuffer();
-        const buffer = Buffer.from(arrayBuffer);
-
-        let nxmlContent: string | null = null;
+        log.push(`4. Reading HTML content from response.`);
+        const html = await response.text();
         
-        const readableStream = Readable.from(buffer);
-        const parserStream = readableStream.pipe(new tar.Parser());
+        log.push(`5. Parsing HTML with JSDOM and Readability to extract main content.`);
+        const doc = new JSDOM(html, { url });
+        const reader = new Readability(doc.window.document);
+        const article = reader.parse();
 
-        await new Promise<void>((resolve, reject) => {
-            parserStream.on('entry', (entry: tar.ReadEntry) => {
-                if (entry.path.endsWith('.nxml')) {
-                    console.log(`[TAR] Found .nxml file: ${entry.path}`);
-                    let content = '';
-                    entry.on('data', chunk => {
-                        content += chunk.toString('utf-8');
-                    });
-                    entry.on('end', () => {
-                        nxmlContent = content;
-                        resolve(); 
-                    });
-                } else {
-                    entry.resume(); // Skip other files
-                }
-            });
-
-            parserStream.on('end', () => {
-                if (nxmlContent === null) {
-                    reject(new Error('Could not find an .nxml file in the archive.'));
-                } else {
-                    resolve();
-                }
-            });
-
-            parserStream.on('error', (err) => {
-                reject(err);
-            });
-        });
-        
-        if (!nxmlContent) {
-            throw new Error("Extraction completed but NXML content is missing.");
+        if (article && article.textContent) {
+            log.push(`6. Success: Extracted content length: ${article.textContent.trim().length} characters.`);
+            return { content: article.textContent.trim(), error: null, log };
+        } else {
+            log.push(`6. Warning: Readability could not find main content. Returning raw text from body as fallback.`);
+            const bodyMatch = html.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
+            const fallbackText = bodyMatch ? bodyMatch[1].replace(/<[^>]+>/g, ' ').replace(/\s\s+/g, ' ').trim() : "Could not find body tag.";
+            return { content: fallbackText, error: "Readability failed, used fallback.", log };
         }
-
-        // Step 5: Parse the .nxml content
-        const nxmlParser = new XMLParser({
-            ignoreAttributes: true,
-            trimValues: true,
-            textNodeName: "#text",
-        });
-
-        const parsedNxml = nxmlParser.parse(nxmlContent);
-        const bodyNode = get(parsedNxml, 'article.body');
-
-        if (!bodyNode) {
-            return "Error: Could not find the 'body' of the article in the NXML file.";
-        }
-
-        const fullText = parseNxmlBody(bodyNode);
-        const cleanedText = fullText.replace(/\s\s+/g, ' ').trim();
-        
-        if (cleanedText.length < 100) {
-            return "Error: Extracted very little text from the NXML. It may be a stub or an unsupported format.";
-        }
-
-        return cleanedText;
 
     } catch (error) {
-        console.error(`Error fetching or parsing full article for PMID ${pmid}:`, error);
-        if (error instanceof Error) {
-            return `Error: ${error.message}`;
-        }
-        return "An unknown error occurred while fetching the article text.";
+        const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
+        log.push(`ERROR: ${errorMessage}`);
+        console.error(`Error scraping content for ${url}:`, error);
+        return { content: null, error: errorMessage, log };
     }
 }

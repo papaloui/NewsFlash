@@ -5,19 +5,34 @@ import { useState } from 'react';
 import { Header } from '@/components/app/header';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
-import { HeartPulse, Loader2, ServerCrash, User, ExternalLink, Trophy, Sparkles, BookOpen } from 'lucide-react';
+import { HeartPulse, Loader2, ServerCrash, User, ExternalLink, Trophy, Sparkles, BookOpen, ListChecks } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { getAndRankPubMedArticles, getArticleFullText, type PubMedArticle } from './actions';
+import { getAndRankPubMedArticles, scrapeArticleContent, type PubMedArticle, type ScrapeResult } from './actions';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 
-type ArticleWithText = PubMedArticle & {
-    fullText?: string;
+type ArticleWithScrapeData = PubMedArticle & {
+    scrapeResult?: ScrapeResult;
     isFetchingText?: boolean;
-    textError?: string;
 };
 
+function ScrapingLog({ result }: { result: ScrapeResult }) {
+    return (
+        <div className="pt-4 mt-4 border-t">
+            <h4 className="font-semibold text-sm flex items-center gap-2 mb-2"><ListChecks className="h-4 w-4"/>Scraping Log</h4>
+            <pre className="bg-muted p-3 rounded-md text-xs font-mono whitespace-pre-wrap max-h-60 overflow-auto">
+                <code>{result.log.join('\n')}</code>
+            </pre>
+            {result.error && (
+                 <div className="mt-2 text-destructive text-xs font-mono bg-destructive/10 p-2 rounded-md">
+                    <strong>Error:</strong> {result.error}
+                </div>
+            )}
+        </div>
+    )
+}
+
 export default function FitnessPage() {
-    const [articles, setArticles] = useState<ArticleWithText[]>([]);
+    const [articles, setArticles] = useState<ArticleWithScrapeData[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const { toast } = useToast();
@@ -48,19 +63,26 @@ export default function FitnessPage() {
 
     const handleFetchFullText = async (pmid: string) => {
         const targetArticle = articles.find(a => a.pmid === pmid);
-        if (!targetArticle || targetArticle.fullText || targetArticle.isFetchingText) return;
+        if (!targetArticle || targetArticle.scrapeResult || targetArticle.isFetchingText) return;
 
-        setArticles(prev => prev.map(a => a.pmid === pmid ? { ...a, isFetchingText: true, textError: undefined } : a));
+        const urlToScrape = getFullTextUrl(targetArticle);
+
+        setArticles(prev => prev.map(a => a.pmid === pmid ? { ...a, isFetchingText: true, scrapeResult: undefined } : a));
 
         try {
-            const text = await getArticleFullText(pmid);
-            if (text.startsWith("Error:")) {
-                throw new Error(text);
+            const result = await scrapeArticleContent(urlToScrape);
+            setArticles(prev => prev.map(a => a.pmid === pmid ? { ...a, isFetchingText: false, scrapeResult: result } : a));
+            if (result.error) {
+                 toast({
+                    variant: 'destructive',
+                    title: 'Scraping Failed',
+                    description: result.error,
+                });
             }
-            setArticles(prev => prev.map(a => a.pmid === pmid ? { ...a, isFetchingText: false, fullText: text } : a));
         } catch (err) {
             const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred.';
-            setArticles(prev => prev.map(a => a.pmid === pmid ? { ...a, isFetchingText: false, textError: errorMessage } : a));
+            const result: ScrapeResult = { content: null, error: errorMessage, log: ['A critical error occurred on the client side.'] };
+            setArticles(prev => prev.map(a => a.pmid === pmid ? { ...a, isFetchingText: false, scrapeResult: result } : a));
              toast({
                 variant: 'destructive',
                 title: 'Failed to Fetch Text',
@@ -150,16 +172,21 @@ export default function FitnessPage() {
                                             </AccordionTrigger>
                                             <AccordionContent>
                                                 {article.isFetchingText ? (
-                                                <div className="pt-3 border-t flex items-center gap-2 text-muted-foreground">
+                                                <div className="pt-3 flex items-center gap-2 text-muted-foreground">
                                                     <Loader2 className="h-4 w-4 animate-spin" />
-                                                    <span>Fetching and processing full text... This may take a moment.</span>
+                                                    <span>Scraping article content...</span>
                                                 </div>
-                                                ) : article.textError ? (
-                                                    <p className="pt-3 border-t text-sm text-destructive whitespace-pre-wrap font-mono">{article.textError}</p>
-                                                ) : article.fullText ? (
-                                                <div className="pt-3 border-t">
-                                                    <p className="text-sm text-muted-foreground whitespace-pre-wrap max-h-96 overflow-y-auto">{article.fullText}</p>
-                                                </div>
+                                                ) : article.scrapeResult ? (
+                                                <>
+                                                    {article.scrapeResult.content ? (
+                                                        <div className="pt-3 border-t">
+                                                            <p className="text-sm text-muted-foreground whitespace-pre-wrap max-h-96 overflow-y-auto">{article.scrapeResult.content}</p>
+                                                        </div>
+                                                    ) : (
+                                                        <p className="pt-3 border-t text-sm text-destructive">No content was extracted.</p>
+                                                    )}
+                                                    <ScrapingLog result={article.scrapeResult} />
+                                                </>
                                                 ) : null}
                                             </AccordionContent>
                                         </AccordionItem>
