@@ -5,34 +5,13 @@ import { useState } from 'react';
 import { Header } from '@/components/app/header';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
-import { HeartPulse, Loader2, ServerCrash, User, ExternalLink, Trophy, Sparkles, BookOpen, ListChecks } from 'lucide-react';
+import { HeartPulse, Loader2, ServerCrash, User, ExternalLink, Trophy, BookOpen } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { getAndRankPubMedArticles, scrapeArticleContent, type PubMedArticle, type ScrapeResult } from './actions';
+import { getAndRankPubMedArticles, type PubMedArticle } from './actions';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 
-type ArticleWithScrapeData = PubMedArticle & {
-    scrapeResult?: ScrapeResult;
-    isFetchingText?: boolean;
-};
-
-function ScrapingLog({ result }: { result: ScrapeResult }) {
-    return (
-        <div className="pt-4 mt-4 border-t">
-            <h4 className="font-semibold text-sm flex items-center gap-2 mb-2"><ListChecks className="h-4 w-4"/>Scraping Log</h4>
-            <pre className="bg-muted p-3 rounded-md text-xs font-mono whitespace-pre-wrap max-h-60 overflow-auto">
-                <code>{result.log.join('\n')}</code>
-            </pre>
-            {result.error && (
-                 <div className="mt-2 text-destructive text-xs font-mono bg-destructive/10 p-2 rounded-md">
-                    <strong>Error:</strong> {result.error}
-                </div>
-            )}
-        </div>
-    )
-}
-
 export default function FitnessPage() {
-    const [articles, setArticles] = useState<ArticleWithScrapeData[]>([]);
+    const [articles, setArticles] = useState<PubMedArticle[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const { toast } = useToast();
@@ -54,48 +33,21 @@ export default function FitnessPage() {
             toast({
                 variant: 'destructive',
                 title: 'Operation Failed',
-                description: 'Could not fetch or rank articles. See details below.',
+                description: 'Could not fetch or rank articles from PMC. See details below.',
             });
         } finally {
             setIsLoading(false);
         }
     };
-
-    const handleFetchFullText = async (pmid: string) => {
-        const targetArticle = articles.find(a => a.pmid === pmid);
-        if (!targetArticle || targetArticle.scrapeResult || targetArticle.isFetchingText) return;
-
-        const urlToScrape = getFullTextUrl(targetArticle);
-
-        setArticles(prev => prev.map(a => a.pmid === pmid ? { ...a, isFetchingText: true, scrapeResult: undefined } : a));
-
-        try {
-            const result = await scrapeArticleContent(urlToScrape);
-            setArticles(prev => prev.map(a => a.pmid === pmid ? { ...a, isFetchingText: false, scrapeResult: result } : a));
-            if (result.error) {
-                 toast({
-                    variant: 'destructive',
-                    title: 'Scraping Failed',
-                    description: result.error,
-                });
-            }
-        } catch (err) {
-            const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred.';
-            const result: ScrapeResult = { content: null, error: errorMessage, log: ['A critical error occurred on the client side.'] };
-            setArticles(prev => prev.map(a => a.pmid === pmid ? { ...a, isFetchingText: false, scrapeResult: result } : a));
-             toast({
-                variant: 'destructive',
-                title: 'Failed to Fetch Text',
-                description: errorMessage,
-            });
+    
+    const getArticleUrl = (article: PubMedArticle) => {
+        if (article.pmcid) {
+            return `https://www.ncbi.nlm.nih.gov/pmc/articles/${article.pmcid}/`;
         }
-    };
-
-    const getFullTextUrl = (article: PubMedArticle) => {
-      if (article.doi) {
-        return `https://doi.org/${article.doi}`;
-      }
-      return `https://pubmed.ncbi.nlm.nih.gov/${article.pmid}/`;
+        if (article.doi) {
+            return `https://doi.org/${article.doi}`;
+        }
+        return `https://pubmed.ncbi.nlm.nih.gov/${article.pmid}/`;
     }
 
     return (
@@ -109,7 +61,7 @@ export default function FitnessPage() {
                             Fitness & Health Research Digest
                         </CardTitle>
                         <CardDescription>
-                            Fetches and ranks the latest exercise science articles from PubMed for elite athletes. Articles are from the last 7 days.
+                            Fetches and ranks the latest full-text, open-access exercise science articles from PubMed Central (PMC). Articles are from the last 7 days.
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
@@ -164,30 +116,16 @@ export default function FitnessPage() {
                                     
                                      <Accordion type="single" collapsible>
                                         <AccordionItem value="item-1">
-                                            <AccordionTrigger onClick={() => handleFetchFullText(article.pmid)}>
+                                            <AccordionTrigger>
                                                 <span className="flex items-center gap-2">
                                                     <BookOpen className="h-4 w-4" />
-                                                    Read Full Article
+                                                    View Abstract
                                                 </span>
                                             </AccordionTrigger>
                                             <AccordionContent>
-                                                {article.isFetchingText ? (
-                                                <div className="pt-3 flex items-center gap-2 text-muted-foreground">
-                                                    <Loader2 className="h-4 w-4 animate-spin" />
-                                                    <span>Scraping article content...</span>
+                                                <div className="pt-3 border-t">
+                                                    <p className="text-sm text-muted-foreground whitespace-pre-wrap max-h-96 overflow-y-auto">{article.abstract}</p>
                                                 </div>
-                                                ) : article.scrapeResult ? (
-                                                <>
-                                                    {article.scrapeResult.content ? (
-                                                        <div className="pt-3 border-t">
-                                                            <p className="text-sm text-muted-foreground whitespace-pre-wrap max-h-96 overflow-y-auto">{article.scrapeResult.content}</p>
-                                                        </div>
-                                                    ) : (
-                                                        <p className="pt-3 border-t text-sm text-destructive">No content was extracted.</p>
-                                                    )}
-                                                    <ScrapingLog result={article.scrapeResult} />
-                                                </>
-                                                ) : null}
                                             </AccordionContent>
                                         </AccordionItem>
                                     </Accordion>
@@ -195,7 +133,7 @@ export default function FitnessPage() {
                                 </CardContent>
                                 <CardFooter className="flex-col sm:flex-row gap-2 items-center pl-16">
                                     <Button asChild variant="outline" size="sm" className="w-full">
-                                        <a href={getFullTextUrl(article)} target="_blank" rel="noopener noreferrer">
+                                        <a href={getArticleUrl(article)} target="_blank" rel="noopener noreferrer">
                                             Read on Source
                                             <ExternalLink className="ml-2 h-4 w-4" />
                                         </a>

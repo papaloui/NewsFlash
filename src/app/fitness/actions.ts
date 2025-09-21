@@ -3,8 +3,6 @@
 
 import { rankPubMedArticles, type RankPubMedArticlesInput } from "@/ai/flows/rank-pubmed-articles";
 import { XMLParser } from "fast-xml-parser";
-import { JSDOM } from 'jsdom';
-import { Readability } from '@mozilla/readability';
 
 export interface PubMedArticle {
     title: string;
@@ -16,13 +14,6 @@ export interface PubMedArticle {
     doi?: string;
     pmcid?: string;
 }
-
-export interface ScrapeResult {
-    content: string | null;
-    error: string | null;
-    log: string[];
-}
-
 
 const get = (obj: any, path: string, defaultValue: any = null) => {
     const value = path.split('.').reduce((acc, c) => (acc && acc[c]) ? acc[c] : undefined, obj);
@@ -62,72 +53,78 @@ const extractAbstract = (abstractNode: any): string => {
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-
 export async function getAndRankPubMedArticles(): Promise<{ articles?: PubMedArticle[], error?: string }> {
-    const searchTerm = "strength training OR exercise recovery OR sports performance OR athlete";
+    // Updated search term to target PMC's open access subset
+    const searchTerm = `"loattrfree full text"[filter] AND ("strength training" OR "exercise recovery" OR "sports performance" OR "athlete")`;
     const retmax = 50; 
 
     try {
-        const esearchUrl = `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=${encodeURIComponent(searchTerm)}&retmax=${retmax}&sort=pub+date&reldate=7&retmode=json`;
-        console.log(`[PubMed] Fetching PMIDs from: ${esearchUrl}`);
+        // Step 1: ESearch PMC database for open access articles from the last 7 days
+        const esearchUrl = `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pmc&term=${encodeURIComponent(searchTerm)}&retmax=${retmax}&sort=pub+date&reldate=7&retmode=json`;
+        console.log(`[PMC] Fetching article IDs from: ${esearchUrl}`);
         const esearchResponse = await fetch(esearchUrl);
-        if (!esearchResponse.ok) throw new Error(`Failed ESearch: ${esearchResponse.statusText}`);
+        if (!esearchResponse.ok) throw new Error(`Failed ESearch on PMC: ${esearchResponse.statusText}`);
 
         const esearchText = await esearchResponse.text();
         if (esearchText.trim().startsWith('<')) {
-            throw new Error(`PubMed ESearch returned an unexpected XML response instead of JSON. This may be an API error. Content: ${esearchText.slice(0, 200)}`);
+            throw new Error(`PMC ESearch returned an unexpected XML response instead of JSON. Content: ${esearchText.slice(0, 200)}`);
         }
         const esearchData = JSON.parse(esearchText);
 
-        const pmidList = get(esearchData, 'esearchresult.idlist', []);
-        if (!pmidList || pmidList.length === 0) return { articles: [] };
+        const idList = get(esearchData, 'esearchresult.idlist', []);
+        if (!idList || idList.length === 0) return { articles: [] };
 
-        const pmidString = pmidList.join(',');
+        const idString = idList.join(',');
         await sleep(200);
 
-        const efetchUrl = `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=${pmidString}&retmode=xml`;
-        console.log(`[PubMed] Fetching article data from: ${efetchUrl}`);
+        // Step 2: EFetch from PMC database to get full article data
+        const efetchUrl = `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pmc&id=${idString}&retmode=xml`;
+        console.log(`[PMC] Fetching article data from: ${efetchUrl}`);
         const efetchResponse = await fetch(efetchUrl);
-        if (!efetchResponse.ok) throw new Error(`Failed EFetch: ${efetchResponse.statusText}`);
+        if (!efetchResponse.ok) throw new Error(`Failed EFetch on PMC: ${efetchResponse.statusText}`);
         const xmlText = await efetchResponse.text();
-        await sleep(200);
         
         const parser = new XMLParser({
             ignoreAttributes: false, attributeNamePrefix: "@_", parseTagValue: true,
             trimValues: true, textNodeName: "#text",
-            isArray: (name) => ['PubmedArticle', 'Author', 'AbstractText', 'ArticleId'].includes(name)
+            isArray: (name) => ['article', 'author', 'abstract', 'article-id'].includes(name)
         });
         const parsedXml = parser.parse(xmlText);
-        const articlesFromXml = get(parsedXml, 'PubmedArticleSet.PubmedArticle', []);
+        const articlesFromXml = get(parsedXml, 'pmc-articleset.article', []);
         
         const allArticlesMap = new Map<string, PubMedArticle>();
         
         articlesFromXml.forEach((article: any) => {
-            const articleData = get(article, 'MedlineCitation.Article');
-            const pmidValue = get(article, 'MedlineCitation.PMID.#text');
-            if (!pmidValue) return;
-            const pmid = String(pmidValue);
+            const front = get(article, 'front.article-meta');
+            if (!front) return;
 
-            const title = extractText(get(articleData, 'ArticleTitle', 'No title available'));
-            const authorsList = get(articleData, 'AuthorList.Author', []).map((a: any) => `${get(a, 'ForeName', '')} ${get(a, 'LastName', '')}`.trim()).filter(Boolean);
-            const authors = authorsList;
-            const journal = get(articleData, 'Journal.Title', 'N/A');
+            const pmidObj = get(front, 'article-id', []).find((id: any) => id['@_pub-id-type'] === 'pmid');
+            const pmid = pmidObj ? String(pmidObj['#text']) : null;
+            if (!pmid) return; // We need a PMID to rank and map
 
-            const pubDate = get(articleData, 'Journal.JournalIssue.PubDate');
-            const pubYear = get(pubDate, 'Year', '');
-            const pubMonth = get(pubDate, 'Month', '');
-            const pubDay = get(pubDate, 'Day', '');
+            const title = extractText(get(front, 'title-group.article-title', 'No title available'));
+            
+            const authorsList = get(front, 'contrib-group.contrib', [])
+                .filter((c: any) => c['@_contrib-type'] === 'author')
+                .map((a: any) => `${get(a, 'name.given-names', '')} ${get(a, 'name.surname', '')}`.trim())
+                .filter(Boolean);
+
+            const journal = get(front, 'journal-meta.journal-title-group.journal-title', 'N/A');
+
+            const pubDate = get(front, 'pub-date', [])[0]; // Get first pub date
+            const pubYear = get(pubDate, 'year', '');
+            const pubMonth = get(pubDate, 'month', '');
+            const pubDay = get(pubDate, 'day', '');
             const publication_date = [pubYear, pubMonth, pubDay].filter(Boolean).join('-');
 
-            const abstract = extractAbstract(get(articleData, 'Abstract'));
+            const abstract = extractAbstract(get(front, 'abstract.0', get(article, 'body')));
             
-            const articleIdList = get(article, 'PubmedData.ArticleIdList.ArticleId', []);
-            const doiObject = articleIdList.find((id: any) => id['@_IdType'] === 'doi');
-            const doi = doiObject ? doiObject['#text'] : undefined;
-            const pmcidObject = articleIdList.find((id: any) => id['@_IdType'] === 'pmc');
-            const pmcid = pmcidObject ? pmcidObject['#text'] : undefined;
-            
-            const articleObject: PubMedArticle = { title, authors, journal, publication_date, abstract, pmid, doi, pmcid };
+            const doiObj = get(front, 'article-id', []).find((id: any) => id['@_pub-id-type'] === 'doi');
+            const doi = doiObj ? doiObj['#text'] : undefined;
+            const pmcidObj = get(front, 'article-id', []).find((id: any) => id['@_pub-id-type'] === 'pmc');
+            const pmcid = pmcidObj ? `PMC${pmcidObj['#text']}` : undefined;
+
+            const articleObject: PubMedArticle = { title, authors: authorsList, journal, publication_date, abstract, pmid, doi, pmcid };
 
             if (articleObject.title !== 'No title available') {
                  allArticlesMap.set(pmid, articleObject);
@@ -155,79 +152,5 @@ export async function getAndRankPubMedArticles(): Promise<{ articles?: PubMedArt
         let errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
         console.error('Error in getAndRankPubMedArticles:', error);
         return { error: errorMessage };
-    }
-}
-
-
-export async function scrapeArticleContent(url: string): Promise<ScrapeResult> {
-    const log: string[] = [];
-    const headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
-        'Accept-Language': 'en-US,en;q=0.9',
-        'Connection': 'keep-alive',
-        'Upgrade-Insecure-Requests': '1',
-        'Referer': 'https://www.google.com/'
-    };
-
-    try {
-        log.push(`1. Initiating scrape for URL: ${url}`);
-        log.push(`2. Using headers: ${JSON.stringify(headers, null, 2)}`);
-
-        const response = await fetch(url, { headers, redirect: 'follow' });
-        log.push(`3. Received response with status: ${response.status} ${response.statusText}`);
-        
-        if (!response.ok) {
-            throw new Error(`Request failed with status: ${response.status}`);
-        }
-
-        log.push(`4. Reading HTML content from response.`);
-        const html = await response.text();
-        
-        log.push(`5. Parsing HTML with JSDOM.`);
-        const doc = new JSDOM(html, { url }).window.document;
-
-        // --- Primary Method: Readability ---
-        log.push(`6. Attempting extraction with @mozilla/readability.`);
-        const reader = new Readability(doc);
-        const article = reader.parse();
-
-        if (article && article.textContent && article.textContent.length > 200) {
-            log.push(`7. Success (Readability): Extracted content length: ${article.textContent.trim().length} characters.`);
-            return { content: article.textContent.trim(), error: null, log };
-        } else {
-             log.push(`8. Readability found no content or content was too short. Trying fallback selectors.`);
-        }
-
-        // --- Fallback Method: Common Selectors ---
-        const fallbackSelectors = [
-            '.core-container',      // From user example
-            'article',
-            '.article-body',
-            '[role="main"]',
-            '#main-content',
-            '#content',
-            '.post-content',
-        ];
-
-        for (const selector of fallbackSelectors) {
-            const element = doc.querySelector(selector);
-            if (element && element.textContent && element.textContent.trim().length > 200) {
-                log.push(`9. Success (Fallback Selector): Found content using selector '${selector}'. Length: ${element.textContent.trim().length} characters.`);
-                // Basic text cleanup
-                const content = element.textContent.replace(/\s\s+/g, ' ').trim();
-                return { content, error: null, log };
-            }
-        }
-        
-        log.push(`10. All methods failed. No meaningful content could be extracted.`);
-        return { content: null, error: "Readability and all fallback selectors failed to find meaningful content.", log };
-
-
-    } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
-        log.push(`ERROR: ${errorMessage}`);
-        console.error(`Error scraping content for ${url}:`, error);
-        return { content: null, error: errorMessage, log };
     }
 }
