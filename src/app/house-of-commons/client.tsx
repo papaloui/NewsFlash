@@ -279,48 +279,50 @@ export function HouseOfCommonsClient({ allSittingDates }: { allSittingDates: str
     <div className="grid gap-6">
         <Card>
             <CardContent className="pt-6 space-y-4">
-            <Popover>
-                <PopoverTrigger asChild>
-                    <Button
-                        variant={"outline"}
-                        className="w-[280px] justify-start text-left font-normal"
-                        disabled={isCalendarLoading || isLoading || isSummarizing}
-                    >
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {selectedDate ? format(selectedDate, "PPP") : <span>Pick a date</span>}
-                    </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0">
-                    <Calendar
-                        mode="single"
-                        selected={selectedDate}
-                        onSelect={setSelectedDate}
-                        initialFocus
-                        modifiers={{ 
-                            sitting: allSittingDates.map(d => {
-                                const [year, month, day] = d.split('-').map(Number);
-                                return new Date(year, month - 1, day);
-                            }) 
-                        }}
-                        modifiersClassNames={{ sitting: 'bg-primary/20' }}
-                        disabled={isCalendarLoading || isLoading || isSummarizing}
-                    />
-                </PopoverContent>
-            </Popover>
-
-            <div className="flex flex-col sm:flex-row gap-2">
-                <Input
-                value={url}
-                onChange={(e) => setUrl(e.target.value)}
-                placeholder="Or enter Hansard XML URL manually..."
-                disabled={isLoading || isSummarizing}
-                className="flex-1"
-                />
-                <Button onClick={() => handleLoad(url)} disabled={isLoading || isSummarizing || !url}>
-                {(isLoading || isSummarizing) ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <BookOpen className="mr-2 h-4 w-4" />}
-                Load Manually
-                </Button>
-            </div>
+                <div className="flex flex-col sm:flex-row gap-4">
+                    <Popover>
+                        <PopoverTrigger asChild>
+                            <Button
+                                variant={"outline"}
+                                className="w-full sm:w-[280px] justify-start text-left font-normal"
+                                disabled={isCalendarLoading || isLoading || isSummarizing}
+                            >
+                                <CalendarIcon className="mr-2 h-4 w-4" />
+                                {selectedDate ? format(selectedDate, "PPP") : <span>Pick a date</span>}
+                            </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0">
+                            <Calendar
+                                mode="single"
+                                selected={selectedDate}
+                                onSelect={setSelectedDate}
+                                initialFocus
+                                modifiers={{ 
+                                    sitting: allSittingDates.map(d => {
+                                        const [year, month, day] = d.split('-').map(Number);
+                                        return new Date(year, month - 1, day);
+                                    }) 
+                                }}
+                                modifiersClassNames={{ sitting: 'bg-primary/20' }}
+                                disabled={isCalendarLoading || isLoading || isSummarizing}
+                            />
+                        </PopoverContent>
+                    </Popover>
+                    <p className="text-sm text-muted-foreground text-center sm:text-left flex-shrink-0">OR</p>
+                    <div className="flex flex-col sm:flex-row gap-2 flex-grow">
+                        <Input
+                        value={url}
+                        onChange={(e) => setUrl(e.target.value)}
+                        placeholder="Enter Hansard XML URL manually"
+                        disabled={isLoading || isSummarizing}
+                        className="flex-1"
+                        />
+                        <Button onClick={() => handleLoad(url)} disabled={isLoading || isSummarizing || !url}>
+                        {(isLoading || isSummarizing) ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <BookOpen className="mr-2 h-4 w-4" />}
+                        Load Manually
+                        </Button>
+                    </div>
+                </div>
             </CardContent>
         </Card>
 
