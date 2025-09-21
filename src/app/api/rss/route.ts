@@ -21,12 +21,9 @@ const parseArticle = (item: any, channel: any): Article | null => {
     const pubDateString = get(item, 'pubDate', get(item, 'published'));
     let publicationDate: string;
     try {
-        // Use native toLocaleDateString for performance and consistency.
-        // Specifying a locale ('en-US') prevents hydration errors between server/client.
-        publicationDate = pubDateString ? new Date(pubDateString).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric'}) : new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric'});
+        publicationDate = pubDateString ? new Date(pubDateString).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric'}) : new Date().toISOString();
     } catch (e) {
-        // If date is invalid, fallback to today's date, consistently formatted.
-        publicationDate = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric'});
+        publicationDate = new Date().toISOString();
     }
 
     // Standardize description/summary parsing
