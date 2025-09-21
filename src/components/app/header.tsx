@@ -6,9 +6,9 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 const DropdownNav = ({ title, children }: { title: string, children: React.ReactNode }) => (
     <DropdownMenu>
         <DropdownMenuTrigger asChild>
-            <Button variant="outline">
+            <Button variant="outline" size="sm" className="text-xs md:text-sm">
                 {title}
-                <ChevronDown className="ml-2 h-4 w-4" />
+                <ChevronDown className="ml-1 md:ml-2 h-4 w-4" />
             </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent>
@@ -20,20 +20,20 @@ const DropdownNav = ({ title, children }: { title: string, children: React.React
 export function Header() {
   return (
     <header className="border-b">
-      <div className="container mx-auto px-4 py-3 flex items-center justify-between">
-        <Link href="/" legacyBehavior={false} className="flex items-center gap-3">
+      <div className="container mx-auto px-4 py-3 flex flex-col sm:flex-row items-center justify-between gap-4">
+        <Link href="/" legacyBehavior={false} className="flex items-center gap-3 self-start sm:self-center">
           <div className="bg-primary text-primary-foreground p-2 rounded-lg">
             <Rss className="h-6 w-6" />
           </div>
-          <h1 className="text-2xl font-bold text-foreground">
+          <h1 className="text-xl md:text-2xl font-bold text-foreground">
             NewsFlash
           </h1>
         </Link>
 
-        <nav className="flex items-center gap-2 flex-wrap">
+        <nav className="flex items-center gap-2 flex-wrap justify-start sm:justify-end w-full sm:w-auto">
             <Link href="/fitness" legacyBehavior={false}>
-              <Button variant="outline">
-                  <HeartPulse className="mr-2 h-4 w-4" />
+              <Button variant="outline" size="sm" className="text-xs md:text-sm">
+                  <HeartPulse className="mr-1 md:mr-2 h-4 w-4" />
                   Fitness
               </Button>
             </Link>
@@ -81,8 +81,8 @@ export function Header() {
             </DropdownNav>
 
             <Link href="/documentation" legacyBehavior={false}>
-              <Button variant="ghost">
-                  <FileCode className="mr-2 h-4 w-4" />
+              <Button variant="ghost" size="sm" className="text-xs md:text-sm">
+                  <FileCode className="mr-1 md:mr-2 h-4 w-4" />
                   Docs
               </Button>
             </Link>
