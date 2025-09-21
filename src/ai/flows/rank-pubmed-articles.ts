@@ -64,7 +64,13 @@ const rankPubMedArticlesFlow = ai.defineFlow(
     outputSchema: RankPubMedArticlesOutputSchema,
   },
   async (articles) => {
-    const articlesAsText = articles.map(article => 
+    // Defensive coding: Ensure all PMIDs are strings before processing.
+    const articlesWithSanitizedPmids = articles.map(article => ({
+      ...article,
+      pmid: String(article.pmid),
+    }));
+
+    const articlesAsText = articlesWithSanitizedPmids.map(article => 
 `PMID: ${article.pmid}
 Title: ${article.title}`
     ).join('\n\n---\n\n');
@@ -106,3 +112,4 @@ Title: ${article.title}`
     return sanitizedOutput;
   }
 );
+
