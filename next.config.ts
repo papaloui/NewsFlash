@@ -31,13 +31,10 @@ const nextConfig: NextConfig = {
       },
     ],
   },
-  experimental: {
-    serverActions: {
-      maxDuration: 600, // 10 minutes
-      bodySizeLimit: '4mb',
-    },
+  serverActions: {
     maxDuration: 600, // 10 minutes
-  }
+    bodySizeLimit: '4mb',
+  },
 };
 
 export default nextConfig;
