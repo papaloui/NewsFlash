@@ -2,57 +2,43 @@
 
 # Dependencies
 /node_modules
-.pnp
+/.pnp
 .pnp.js
 
 # Build outputs
-/build
-/dist
 /.next/
 /out/
-/.output/
 
-# Firebase
-/.firebase/
+# Static analysis cache
+/.eslintcache
 
-# Misc
+# Production build artifacts
+/build
+
+# Miscellaneous
 .DS_Store
 *.pem
-*.p12
-*.key
-*.log*
-
-# Debug logs
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-lerna-debug.log*
 
 # Local environment variables
 .env.local
 .env.development.local
 .env.test.local
 .env.production.local
-.env*.local
+
+# Log files
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
 
 # Editor directories and files
-.vscode/*
-!.vscode/settings.json
-!.vscode/tasks.json
-!.vscode/launch.json
-!.vscode/extensions.json
-.idea
+.vscode/
+.idea/
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
 
-# Next.js cache
-.next/cache/
-
-# Turborepo
-.turbo
-
-# TypeScript
+# TypeScript cache
 *.tsbuildinfo
