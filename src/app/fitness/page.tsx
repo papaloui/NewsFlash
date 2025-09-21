@@ -55,7 +55,9 @@ export default function FitnessPage() {
 
         try {
             const text = await getArticleContent(targetArticle.fullTextUrl);
-            if(text.startsWith("Error:") || text.startsWith("Could not extract")) throw new Error(text);
+            if(text.startsWith("Error:") || text.startsWith("Could not extract")) {
+                throw new Error(text);
+            }
             setArticles(prev => prev.map(a => a.pmid === pmid ? { ...a, isFetchingText: false, fullText: text } : a));
         } catch (err) {
             const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred.';
@@ -147,7 +149,7 @@ export default function FitnessPage() {
                                                     <span>Fetching article content...</span>
                                                 </div>
                                                 ) : article.textError ? (
-                                                    <p className="pt-3 border-t text-sm text-destructive">{article.textError}</p>
+                                                    <p className="pt-3 border-t text-sm text-destructive whitespace-pre-wrap font-mono">{article.textError}</p>
                                                 ) : article.fullText ? (
                                                 <div className="pt-3 border-t">
                                                     <p className="text-sm text-muted-foreground whitespace-pre-wrap max-h-60 overflow-y-auto">{article.fullText}</p>

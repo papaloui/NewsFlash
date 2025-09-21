@@ -26,8 +26,8 @@ export async function getArticleContent(articleLink: string): Promise<string> {
         const html = await response.text();
         const content = extractArticleContent(html, articleLink);
 
-        if (!content || content.length < 100) { // Check if content is too short
-            return "Could not extract meaningful article content. The page might be a summary, video, or require JavaScript.";
+        if (!content) {
+            return "Could not extract any article content. The page might be empty or require JavaScript.";
         }
 
         return content;
