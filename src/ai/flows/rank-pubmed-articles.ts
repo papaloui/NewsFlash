@@ -72,7 +72,7 @@ const rankPubMedArticlesFlow = ai.defineFlow(
     }));
 
     const articlesAsText = articlesWithSanitizedPmids.map(article => 
-`PMID: ${article.pmid}
+`PMID: ${String(article.pmid)}
 Title: ${article.title}`
     ).join('\n\n---\n\n');
 
