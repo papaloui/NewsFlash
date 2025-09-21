@@ -59,8 +59,8 @@ export async function getAndRankPubMedArticles(): Promise<{ articles?: PubMedArt
     const retmax = 50; 
 
     try {
-        // Step 1: ESearch PMC database for open access articles from the last 7 days
-        const esearchUrl = `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pmc&term=${encodeURIComponent(searchTerm)}&retmax=${retmax}&sort=pub+date&reldate=7&retmode=json`;
+        // Step 1: ESearch PMC database for open access articles from the last 60 days
+        const esearchUrl = `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pmc&term=${encodeURIComponent(searchTerm)}&retmax=${retmax}&sort=pub+date&reldate=60&retmode=json`;
         console.log(`[PMC] Fetching article IDs from: ${esearchUrl}`);
         const esearchResponse = await fetch(esearchUrl);
         if (!esearchResponse.ok) throw new Error(`Failed ESearch on PMC: ${esearchResponse.statusText}`);
@@ -87,7 +87,7 @@ export async function getAndRankPubMedArticles(): Promise<{ articles?: PubMedArt
         const parser = new XMLParser({
             ignoreAttributes: false, attributeNamePrefix: "@_", parseTagValue: true,
             trimValues: true, textNodeName: "#text",
-            isArray: (name) => ['article', 'author', 'abstract', 'article-id'].includes(name)
+            isArray: (name) => ['article', 'author', 'abstract', 'article-id', 'contrib'].includes(name)
         });
         const parsedXml = parser.parse(xmlText);
         const articlesFromXml = get(parsedXml, 'pmc-articleset.article', []);
@@ -104,7 +104,7 @@ export async function getAndRankPubMedArticles(): Promise<{ articles?: PubMedArt
 
             const title = extractText(get(front, 'title-group.article-title', 'No title available'));
             
-            const authorsList = get(front, 'contrib-group.contrib', [])
+            const authorsList = get(front, 'contrib-group.0.contrib', get(front, 'contrib-group.contrib', []))
                 .filter((c: any) => c['@_contrib-type'] === 'author')
                 .map((a: any) => `${get(a, 'name.given-names', '')} ${get(a, 'name.surname', '')}`.trim())
                 .filter(Boolean);
