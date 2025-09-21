@@ -130,8 +130,8 @@ export default function DocumentationPage() {
                                         <ul className="list-disc pl-5 space-y-1">
                                             <li><span className="font-semibold">Automated:</span> The system checks the official sitting calendar for a specific hardcoded date ('2025-09-17'). If the house was sitting, it navigates through several pages to find the Hansard XML link for that day and automatically loads it. (Currently disabled).</li>
                                             <li><span className="font-semibold">Manual:</span> A user can paste any Hansard XML URL to load and summarize the transcript.</li>
-                                            <li>Once loaded, the XML is parsed into a structured format and a full text transcript is generated. This transcript is sent to a long-running AI job for summarization. The frontend polls every 5 seconds to check for completion. After summarization, a chat interface allows users to ask questions about the debate.</li>
                                         </ul>
+                                        <p>Once loaded, the XML is parsed into a structured format and a full text transcript is generated. This transcript is sent to a long-running AI job for summarization. The frontend polls every 5 seconds to check for completion. After summarization, a chat interface allows users to ask questions about the debate.</p>
                                          <div className="flex items-start gap-2">
                                             <LinkIcon className="h-4 w-4 mt-1" />
                                             <div>
@@ -297,4 +297,5 @@ export default function DocumentationPage() {
 }
 
     
+
 
