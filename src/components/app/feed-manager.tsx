@@ -102,7 +102,7 @@ export function FeedManager({ collections, setCollections, selectedCollectionId,
           )}
         </div>
 
-        <div className="flex items-center gap-2 flex-shrink-0 self-end">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 flex-shrink-0">
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogTrigger asChild>
               <Button variant="outline" onClick={() => handleOpenDialog()}>
@@ -154,7 +154,7 @@ export function FeedManager({ collections, setCollections, selectedCollectionId,
             </DialogContent>
           </Dialog>
 
-          <Button onClick={onFetch} disabled={isFetching || !selectedCollectionId} className="w-48">
+          <Button onClick={onFetch} disabled={isFetching || !selectedCollectionId}>
             {isFetching ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Rss className="mr-2 h-4 w-4" />}
             {isFetching ? (fetchingStatus || 'Fetching...') : 'Fetch Top Stories'}
           </Button>
